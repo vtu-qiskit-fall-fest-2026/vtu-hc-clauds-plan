@@ -15,7 +15,7 @@
 | **Team** | Q-Sentinel |
 | **Team ID** | VTU-QFF-HC-0191 |
 | **Tier** | Online |
-| **Live Interactive Web Platform** | [🌐 **http://localhost:8501**](http://localhost:8501) |
+| **Live Interactive Web Platform** | [🌐 **https://qsentinental.vercel.app/**](https://qsentinental.vercel.app/) |
 | **Repository** | [vtu-hc-clauds-plan](https://github.com/vtu-qiskit-fall-fest-2026/vtu-hc-clauds-plan) |
 | **Organisation** | [vtu-qiskit-fall-fest-2026](https://github.com/vtu-qiskit-fall-fest-2026) |
 | **Event** | VTU-QFF Hackathon — VTU-Qiskit Fall Fest 2026 |
