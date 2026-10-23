@@ -76,7 +76,7 @@ Describe your solution. Keep it concrete: the core idea, the user flow, and
 the quantum/ML technique you are applying.
 -->
 
-*Solution:* We built Q-Sentinel, a phishing URL detection prototype that uses machine learning to analyze URL features and identify potentially suspicious links. We are also exploring a hybrid quantum-classical approach and comparing it with traditional machine learning to evaluate its effectiveness in improving phishing detection.
+*Solution:* We built Q-Sentinel, a phishing URL detection prototype that uses machine learning to analyze URL features and identify potentially suspicious links. We are also exploring a hybrid quantum-classical approach to assess how quantum methods may enhance detection performance.
 
 *Key idea:* Hybrid quantum-classical phishing detection using URL feature extraction, classical machine learning, and a Qiskit-based quantum kernel model for performance comparison.
 
@@ -307,6 +307,8 @@ python train.py --data your_dataset.csv --label-column label
 ---
 
 ## 🎬 Demo Video & Working Prototype
+
+- **Demo Video (YouTube):** [Watch the demo](https://www.youtube.com/watch?v=W1hTc5lIPYg)
 
 - **Working Prototype (Web Dashboard):** Launch locally with `streamlit run app.py`
 
