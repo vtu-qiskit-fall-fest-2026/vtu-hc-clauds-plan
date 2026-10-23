@@ -308,7 +308,7 @@ python train.py --data your_dataset.csv --label-column label
 
 ## 🎬 Demo Video & Working Prototype
 
-- **Demo Video (YouTube):** [Watch the demo](https://www.youtube.com/watch?v=W1hTc5lIPYg)
+- **Demo Video (YouTube):** [Watch the demo](https://youtu.be/LQtrbrABnbw?si=Ebv2eoGLbYADO3tc)
 
 - **Working Prototype (Web Dashboard):** Launch locally with `streamlit run app.py`
 
