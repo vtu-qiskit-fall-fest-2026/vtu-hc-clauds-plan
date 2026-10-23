@@ -55,99 +55,35 @@
 
 ## ❓ Problem Statement
 
-**Problem Statement:** Hybrid Quantum-Classical AI for Phishing URL Detection
+<!--
+State the problem you are solving. Be specific: what is broken or missing,
+who experiences it, and why does it matter. Link to the official problem
+statement from the brief if one applies.
+-->
 
-**Track:** Quantum + AI & ML
+*Problem:* Phishing links are becoming harder to identify, and many people unknowingly click on them and risk their personal information. Our project, Q-Sentinel, aims to identify such links using machine learning and explore whether combining it with quantum computing can improve detection.
 
-### 📋 Brief
+*Why it matters:* We built Q-Sentinel, a system that aims to identify suspicious links and help users stay safe from phishing attacks. It uses machine learning to analyze URLs, and we are exploring how quantum computing can be combined with it to improve detection.
 
-Phishing attacks are one of the most prevalent cybersecurity threats, with attackers using sophisticated URL obfuscation techniques to bypass traditional security filters. This project proposes a **hybrid quantum-classical AI system** that combines classical machine learning with **Qiskit-based quantum feature maps** to detect phishing URLs with high accuracy.
-
-The system integrates classical RandomForest classifiers with **real-time threat intelligence** from AlienVault OTX and **quantum-enhanced feature representations** to improve phishing detection accuracy while remaining practical on NISQ devices.
-
-### 🎯 Key Objectives
-
-- **Extract 12 lexical URL features** (length, hostname, dots, hyphens, special characters, IP address detection, HTTPS status, etc.) for comprehensive URL analysis.
-
-- **Implement classical ML baseline** using RandomForest classifier with scikit-learn.
-
-- **Integrate real-time threat intelligence** from AlienVault OTX API for malware and phishing database lookups.
-
-- **Provide a web dashboard** through Streamlit for transparent, real-time phishing detection analysis.
-
-- **Develop comprehensive test suite** with 57 automated tests covering all modules.
-
-### 📦 Expected Outcome
-
-A **production-ready prototype** that accepts URLs, performs dual analysis (ML + Threat Intel), and provides actionable phishing risk assessments through an interactive web interface.
-
-> **⚠️ Disclaimer:** This is a research prototype for cybersecurity analysis, not a replacement for production security systems.
+*Track / Category:* Online / Offline(both)· Track 1 / Track 2 · <Quantum + AI ML>
 
 ---
 
 ## 💡 Proposed Solution
 
-**Solution:** An end-to-end hybrid classical-quantum intelligence pipeline that ingests URL strings, extracts 12 lexical features, performs real-time threat intelligence lookup via AlienVault OTX API, and leverages RandomForest ML with optional quantum feature encoding for accurate phishing detection and risk scoring.
+<!--
+Describe your solution. Keep it concrete: the core idea, the user flow, and
+the quantum/ML technique you are applying.
+-->
 
-**Key Idea:** Multi-layer detection combining structural URL analysis (lexical features) with real-world threat database reputation scores and machine learning pattern recognition, providing both speed and accuracy for phishing detection at scale.
+*Solution:* We built Q-Sentinel, a phishing URL detection prototype that uses machine learning to analyze URL features and identify potentially suspicious links. We are also exploring a hybrid quantum-classical approach and comparing it with traditional machine learning to evaluate its effectiveness in improving phishing detection.
 
-**Why this works:** URLs exhibit distinct structural patterns that phishing sites exploit. By analyzing 12 carefully selected lexical features alongside real-time threat intelligence, we can achieve high accuracy while maintaining interpretability and speed for production deployment.
+*Key idea:* Hybrid quantum-classical phishing detection using URL feature extraction, classical machine learning, and a Qiskit-based quantum kernel model for performance comparison.
 
----
-
-## 🌍 Real-World Impact & Security Utility
-
-### The Real-World Crisis: The Phishing Epidemic
-
-Across the globe, over **3.4 billion phishing emails** are sent daily, with attack success rates of **3.4%** among enterprise employees:
-
-* **Financial Impact:** Companies lose an average of **$14.8M per year** to phishing attacks alone.
-
-* **Time to Detection:** It takes organizations **236 days on average** to detect a phishing-based breach.
-
-* **The Root Problem (Detection Delay):** Traditional URL filtering relies on reputation databases that update slowly, blacklist/whitelist patterns that phishing adapts around, and rule-based systems that miss novel obfuscation techniques.
+*Why this works:* Q-Sentinel addresses phishing by analyzing URL features with machine learning to identify potentially malicious links before users trust them. By comparing a classical model with a hybrid quantum-classical approach, we aim to evaluate whether quantum techniques can improve detection while measuring accuracy and false positives.
 
 ---
 
-### How Q-Sentinel is Used in the Real World
-
-#### 1. Email Security Gateways (ESGs) & Enterprise Filtering
-
-* **The Scenario:** An enterprise email system receives 50,000 emails per day.
-
-* **How It's Used:** Q-Sentinel integrates with the ESG to scan all embedded URLs before delivery.
-
-* **The Outcome:** Phishing emails are flagged with **88% accuracy** and held for review, preventing credential harvesting before users are exposed.
-
-#### 2. Browser Extensions & Security Tools
-
-* **The Scenario:** A user hovers over a suspicious link in their browser.
-
-* **How It's Used:** The browser extension sends the URL to Q-Sentinel's API endpoint.
-
-* **The Outcome:** Within **100ms**, the user receives a risk indicator (🟢 LOW, 🟡 MEDIUM, 🔴 HIGH).
-
-#### 3. Security Operations Center (SOC) Investigations
-
-* **The Scenario:** A SOC analyst needs to investigate a batch of suspicious URLs from a breach notification.
-
-* **How It's Used:** The analyst uploads a CSV of URLs to the Q-Sentinel batch analysis page.
-
-* **The Outcome:** Results are analyzed in seconds, with both ML predictions and threat intelligence context for each URL.
-
----
-
-### Real-World Tangible Impact
-
-* **Speed:** Reduces detection latency from **hours (database lookups)** to **milliseconds (ML + API)**.
-
-* **Accuracy:** Achieves **88% precision** and **100% recall** on test phishing datasets.
-
-* **Cost Savings:** Prevents millions in fraud, credential reset costs, and incident response overhead.
-
-* **Scalability:** Processes 100+ URLs per second with caching, suitable for enterprise deployment.
-
----
 
 ## 🧩 Approach & Architecture
 
