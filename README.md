@@ -48,7 +48,8 @@
 
 | # | Name | GitHub Username | Role |
 | :-- | :--- | :--- | :--- |
-| 1 | Narasimha Kulkarni | [@narasimhakulkarni393](https://github.com/narasimhakulkarni393) | Team Lead |
+| 1 | Narasimha Kulkarni | [@narasimhakulkarni393-dotcom](https://github.com/narasimhakulkarni393-dotcom) | Team Lead |
+| 2 | Kartik Dhamanekar | [@kartikdhamanekar123-wq](https://github.com/kartikdhamanekar123-wq) | Devloper |
 
 ---
 
