@@ -13,7 +13,7 @@
 | | |
 | :--- | :--- |
 | **Team** | Q-Sentinel |
-| **Team ID** | VTU-QFF-HC-0191 |
+| **Team ID** | VTU-QFF-HC-0030 |
 | **Tier** | Online |
 | **Live Interactive Web Platform** | [🌐 **https://qsentinental.vercel.app/**](https://qsentinental.vercel.app/) |
 | **Repository** | [vtu-hc-clauds-plan](https://github.com/vtu-qiskit-fall-fest-2026/vtu-hc-clauds-plan) |
