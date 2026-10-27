@@ -1,3 +1,0 @@
-"""
-Q-Sentinel test suite.
-"""

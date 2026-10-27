@@ -1,393 +1,331 @@
-"""
-Q-Sentinel Streamlit Dashboard with AlienVault OTX Integration
+"""Q-Sentinel — Streamlit Dashboard.
 
-A cybersecurity-themed interface for phishing URL detection.
-Combines RandomForest ML with real-time threat intelligence.
+A cybersecurity-themed web interface for phishing URL detection.
 """
 
-import streamlit as st
-import os
-import sys
-import pandas as pd
-import numpy as np
 import json
 from pathlib import Path
 
-# Add src to path
-sys.path.insert(0, os.path.dirname(__file__))
+import pandas as pd
+import plotly.figure_factory as ff
+import plotly.graph_objects as go
+import streamlit as st
 
-from src.features import extract_features, get_feature_names
-from src.model import URLPhishingModel
+from src.features import FEATURE_NAMES, extract_features
+from src.model import load_model, predict_url
 
-# Load environment variables
-try:
-    from dotenv import load_dotenv
-    load_dotenv()
-except ImportError:
-    pass
-
-# Threat intel (optional)
-threat_intel_available = False
-try:
-    from src.threat_intel import OTXThreatIntel
-    threat_intel_available = True
-except (ImportError, Exception):
-    threat_intel_available = False
-
-# ============================================================================
-# PAGE CONFIG & STYLING
-# ============================================================================
-
+# ---------------------------------------------------------------------------
+# Page config & global CSS
+# ---------------------------------------------------------------------------
 st.set_page_config(
     page_title="Q-Sentinel",
-    page_icon="[SHIELD]",
+    page_icon="🛡️",
     layout="wide",
-    initial_sidebar_state="expanded"
 )
 
-st.markdown("""
+_CSS = """
 <style>
-    body {
-        background-color: #0a0e27;
-        color: #e0e0e0;
-        font-family: 'Courier New', monospace;
-    }
-    .main {
-        background-color: #0a0e27;
+    /* Dark cyber theme overrides */
+    .stApp {
+        background-color: #0e1117;
     }
     h1, h2, h3 {
-        color: #00D9FF;
-        text-shadow: 0 0 10px rgba(0, 217, 255, 0.3);
+        color: #00e5ff;
     }
-    .phishing-alert {
-        background: linear-gradient(135deg, #4a0000 0%, #2a0a0a 100%);
-        border: 2px solid #ff4444;
-        border-radius: 8px;
-        padding: 15px;
-        margin: 10px 0;
-        color: #ff6666;
+    .stMetric label {
+        color: #b388ff;
     }
-    .legitimate-safe {
-        background: linear-gradient(135deg, #0a4a0a 0%, #0a2a2a 100%);
-        border: 2px solid #00D9FF;
-        border-radius: 8px;
-        padding: 15px;
-        margin: 10px 0;
-        color: #00FF00;
+    .safe-badge {
+        background: linear-gradient(135deg, #00e5ff22, #00e5ff11);
+        border: 1px solid #00e5ff;
+        border-radius: 12px;
+        padding: 1rem 1.5rem;
+        color: #00e5ff;
+        font-size: 1.15rem;
+        text-align: center;
+    }
+    .danger-badge {
+        background: linear-gradient(135deg, #ff174422, #ff174411);
+        border: 1px solid #ff1744;
+        border-radius: 12px;
+        padding: 1rem 1.5rem;
+        color: #ff1744;
+        font-size: 1.15rem;
+        text-align: center;
+    }
+    .info-card {
+        background: #1a1a2e;
+        border: 1px solid #b388ff44;
+        border-radius: 12px;
+        padding: 1rem 1.5rem;
+        margin-bottom: 0.5rem;
     }
 </style>
-""", unsafe_allow_html=True)
+"""
+st.markdown(_CSS, unsafe_allow_html=True)
 
-# ============================================================================
-# UTILITY FUNCTIONS
-# ============================================================================
+# ---------------------------------------------------------------------------
+# Sidebar navigation
+# ---------------------------------------------------------------------------
+page = st.sidebar.radio(
+    "Navigation",
+    ["🔍 URL Scanner", "📊 Model Evaluation", "📁 Batch Analysis", "ℹ️ About"],
+)
 
-@st.cache_resource
-def load_model():
-    """Load the trained model."""
-    model_path = 'models/phishing_model.pkl'
-    
-    if not os.path.exists(model_path):
-        return None, "Model not found"
-    
-    try:
-        model = URLPhishingModel()
-        model.load(model_path)
-        return model, None
-    except Exception as e:
-        return None, str(e)
+# ---------------------------------------------------------------------------
+# Helper: load model once and cache
+# ---------------------------------------------------------------------------
+_MODEL_AVAILABLE = (Path("models") / "model.joblib").is_file()
 
 
 @st.cache_resource
-def init_threat_intel():
-    """Initialize OTX threat intelligence."""
-    if not threat_intel_available:
-        return None
-    try:
-        otx = OTXThreatIntel()
-        return otx
-    except (ValueError, Exception):
-        return None
+def _get_model():
+    return load_model()
 
 
-def load_evaluation_metrics():
-    """Load saved evaluation metrics."""
-    metrics_path = 'results/evaluation_metrics.json'
-    
-    if not os.path.exists(metrics_path):
-        return None
-    
-    try:
-        with open(metrics_path, 'r') as f:
-            return json.load(f)
-    except Exception:
-        return None
-
-
-def predict_url(model, url, threat_intel=None):
-    """Make prediction on a single URL with optional threat intel."""
-    result = {}
-    
-    # ML prediction
-    try:
-        features = extract_features(url)
-        pred, proba = model.predict_single(features)
-        result['features'] = features
-        result['ml_prediction'] = pred
-        result['ml_probability'] = proba
-        result['error'] = None
-    except Exception as e:
-        result['features'] = None
-        result['ml_prediction'] = None
-        result['ml_probability'] = None
-        result['error'] = str(e)
-    
-    # Threat intel
-    result['threat_intel'] = None
-    if threat_intel:
-        try:
-            threat_result = threat_intel.check_url(url)
-            result['threat_intel'] = threat_result
-        except Exception as e:
-            result['threat_intel'] = {
-                'error': f"Threat intel error: {str(e)}",
-                'is_malicious': False
-            }
-    
-    return result
-
-
-# ============================================================================
-# MAIN APP
-# ============================================================================
-
-st.markdown("# Q-SENTINEL: Phishing URL Detection")
-st.markdown("### Classical ML + Threat Intelligence Analysis")
-
-# Load model
-model, model_error = load_model()
-
-if model_error:
-    st.error(f"Model error: {model_error}")
-    st.info("Run: python train.py --data data/sample_urls.csv")
-    st.stop()
-
-# ============================================================================
-# SIDEBAR
-# ============================================================================
-
-with st.sidebar:
-    st.markdown("### Navigation")
-    page = st.radio(
-        "Select page:",
-        ["Scanner", "Evaluation", "Batch Analysis"],
-        label_visibility="collapsed"
+# ---------------------------------------------------------------------------
+# PAGE: URL Scanner
+# ---------------------------------------------------------------------------
+if page == "🔍 URL Scanner":
+    st.markdown("# 🛡️ Q-Sentinel")
+    st.markdown(
+        "*Hybrid Quantum–Classical AI for Phishing URL Detection*",
     )
-    
-    st.divider()
-    
-    st.markdown("### Info")
-    st.markdown("""
-    **Q-Sentinel v0.2.0**
-    
-    - ML: RandomForest (12 features)
-    - TI: AlienVault OTX
-    - Speed: <1s per URL
-    """)
+    st.markdown("---")
 
-# ============================================================================
-# PAGE 1: SCANNER
-# ============================================================================
-
-if page == "Scanner":
-    st.header("URL Scanner")
-    
-    threat_intel = init_threat_intel()
-    if threat_intel:
-        st.success("Threat Intelligence: Connected")
+    if not _MODEL_AVAILABLE:
+        st.warning(
+            "⚠️ No trained model found.  "
+            "Run `python train.py --data <your_dataset.csv>` first."
+        )
     else:
-        st.warning("Threat Intelligence: Unavailable")
-    
-    url_input = st.text_input(
-        "Enter URL:",
-        placeholder="https://example.com",
-        help="URL to analyze"
-    )
-    
-    show_details = st.checkbox("Show details")
-    
-    if url_input:
-        with st.spinner("Analyzing..."):
-            result = predict_url(model, url_input, threat_intel=threat_intel)
-        
-        st.divider()
-        
-        if result.get('error'):
-            st.error(result['error'])
-        else:
-            ml_pred = result.get('ml_prediction')
-            ml_prob = result.get('ml_probability', 0)
-            ti = result.get('threat_intel')
-            
-            # Determine risk
-            risk = "LOW"
-            if ti and not ti.get('error'):
-                if ti.get('is_malicious') or ml_pred == 1:
-                    risk = "HIGH"
-            elif ml_pred == 1:
-                risk = "MEDIUM"
-            
-            # Display result
-            if risk == "HIGH":
-                st.markdown("""
-                <div class="phishing-alert">
-                <h3>RISK: HIGH</h3>
-                </div>
-                """, unsafe_allow_html=True)
-            elif risk == "MEDIUM":
-                st.warning("RISK: MEDIUM - Suspicious")
+        url_input = st.text_input(
+            "Enter a URL to analyse",
+            placeholder="https://example.com/login?user=123",
+        )
+
+        if st.button("🔎 Scan URL", type="primary"):
+            if not url_input or not url_input.strip():
+                st.error("Please enter a valid URL.")
             else:
-                st.markdown("""
-                <div class="legitimate-safe">
-                <h3>RISK: LOW</h3>
-                </div>
-                """, unsafe_allow_html=True)
-            
-            # Metrics
-            col1, col2, col3 = st.columns(3)
-            with col1:
-                st.metric("ML Confidence", f"{ml_prob*100:.1f}%")
-            if ti and not ti.get('error'):
-                with col2:
-                    rep = ti.get('reputation', 0)
-                    st.metric("OTX Rep", f"{rep:+d}")
-                with col3:
-                    inds = len(ti.get('indicators', []))
-                    st.metric("Indicators", inds)
-            
-            # Details
-            if show_details:
-                if ti and not ti.get('error'):
-                    st.subheader("Threat Intelligence")
-                    col1, col2 = st.columns(2)
-                    with col1:
-                        st.write(f"Status: {ti.get('threat_level', 'unknown')}")
-                        st.write(f"Malicious: {ti.get('is_malicious', False)}")
-                    with col2:
-                        for ind in ti.get('indicators', [])[:3]:
-                            st.write(f"- {ind}")
-                
-                st.subheader("ML Features")
-                features = result.get('features', [])
-                if features:
-                    names = get_feature_names()
-                    col1, col2 = st.columns(2)
-                    with col1:
-                        for i in range(6):
-                            st.write(f"{names[i]}: {features[i]}")
-                    with col2:
-                        for i in range(6, 12):
-                            st.write(f"{names[i]}: {features[i]}")
+                clf, scaler = _get_model()
+                result = predict_url(url_input, clf=clf, scaler=scaler)
 
-# ============================================================================
-# PAGE 2: EVALUATION
-# ============================================================================
+                # Prediction badge
+                if result["label"] == 1:
+                    st.markdown(
+                        f'<div class="danger-badge">⚠️ {result["label_text"]}<br>'
+                        f'Confidence: {result["probability_phishing"]:.1%}</div>',
+                        unsafe_allow_html=True,
+                    )
+                else:
+                    st.markdown(
+                        f'<div class="safe-badge">✅ {result["label_text"]}<br>'
+                        f'Confidence: {result["probability_legitimate"]:.1%}</div>',
+                        unsafe_allow_html=True,
+                    )
 
-elif page == "Evaluation":
-    st.header("Model Evaluation")
-    
-    metrics = load_evaluation_metrics()
-    
-    if metrics is None:
-        st.error("Metrics not found")
+                st.caption(
+                    "⚠️ Disclaimer: This prediction is a statistical estimate, "
+                    "not proof of safety. Always verify URLs independently."
+                )
+
+                # Feature inspection
+                st.markdown("### 🔬 Feature Inspection")
+                feat_df = pd.DataFrame(
+                    list(result["features"].items()),
+                    columns=["Feature", "Value"],
+                )
+                st.dataframe(feat_df, use_container_width=True, hide_index=True)
+
+# ---------------------------------------------------------------------------
+# PAGE: Model Evaluation
+# ---------------------------------------------------------------------------
+elif page == "📊 Model Evaluation":
+    st.markdown("# 📊 Model Evaluation")
+    st.markdown("---")
+
+    metrics_path = Path("results") / "metrics.json"
+    report_path = Path("results") / "classification_report.txt"
+
+    if not metrics_path.is_file():
+        st.warning(
+            "⚠️ No evaluation results found.  "
+            "Train a model first with `python train.py --data <dataset.csv>`."
+        )
     else:
-        col1, col2, col3, col4 = st.columns(4)
-        col1.metric("Accuracy", f"{metrics['accuracy']:.3f}")
-        col2.metric("Precision", f"{metrics['precision']:.3f}")
-        col3.metric("Recall", f"{metrics['recall']:.3f}")
-        col4.metric("F1-Score", f"{metrics['f1_score']:.3f}")
-        
-        st.divider()
-        
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            st.subheader("Confusion Matrix")
-            cm = metrics['confusion_matrix']
-            df_cm = pd.DataFrame(cm, 
-                index=['Actual Legit', 'Actual Phish'],
-                columns=['Pred Legit', 'Pred Phish'])
-            st.dataframe(df_cm, use_container_width=True)
-        
-        with col2:
-            st.subheader("Metrics")
-            st.metric("ROC-AUC", f"{metrics.get('roc_auc', 0):.3f}")
-            st.metric("False Positive Rate", f"{metrics.get('false_positive_rate', 0):.3f}")
+        with open(metrics_path) as f:
+            metrics = json.load(f)
 
-# ============================================================================
-# PAGE 3: BATCH ANALYSIS
-# ============================================================================
+        st.info(
+            "ℹ️ These metrics were computed on the held-out test split during "
+            "training. They reflect model performance on the dataset you "
+            "provided — not on all possible phishing URLs.",
+            icon="📌",
+        )
 
-elif page == "Batch Analysis":
-    st.header("Batch Analysis")
-    
-    uploaded_file = st.file_uploader("Upload CSV", type=['csv'])
-    
-    if uploaded_file:
-        try:
-            df = pd.read_csv(uploaded_file)
-        except Exception as e:
-            st.error(f"Error reading file: {e}")
-            st.stop()
-        
-        if 'url' not in df.columns:
-            st.error("CSV must have 'url' column")
-            st.stop()
-        
-        st.info(f"Loaded {len(df)} URLs")
-        
-        if st.button("Analyze All"):
-            threat_intel = init_threat_intel()
-            
-            progress_bar = st.progress(0)
-            status_text = st.empty()
-            
-            predictions = []
-            
-            for idx, url in enumerate(df['url']):
-                status_text.text(f"Processing {idx+1}/{len(df)}...")
-                progress_bar.progress((idx+1)/len(df))
-                result = predict_url(model, url, threat_intel=threat_intel)
-                predictions.append(result)
-            
-            results_df = df.copy()
-            results_df['prediction'] = [
-                "Phishing" if p.get('ml_prediction') == 1 else "Legitimate" 
-                for p in predictions
-            ]
-            results_df['confidence'] = [
-                f"{p.get('ml_probability', 0)*100:.1f}%" 
-                for p in predictions
-            ]
-            
-            st.divider()
-            st.subheader("Results")
-            
-            phishing_count = sum(1 for p in predictions if p.get('ml_prediction') == 1)
-            legit_count = sum(1 for p in predictions if p.get('ml_prediction') == 0)
-            
-            col1, col2 = st.columns(2)
-            col1.metric("Phishing", phishing_count)
-            col2.metric("Legitimate", legit_count)
-            
-            st.dataframe(results_df, use_container_width=True)
-            
-            csv = results_df.to_csv(index=False)
-            st.download_button("Download Results", csv, "results.csv", "text/csv")
+        # KPI cards
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("Precision", f"{metrics['precision']:.4f}")
+        c2.metric("Recall", f"{metrics['recall']:.4f}")
+        c3.metric("F1-Score", f"{metrics['f1']:.4f}")
+        c4.metric("False Positive Rate", f"{metrics['false_positive_rate']:.4f}")
 
-# ============================================================================
-# FOOTER
-# ============================================================================
+        st.markdown(f"**Train samples:** {metrics['num_train']}  |  "
+                    f"**Test samples:** {metrics['num_test']}")
 
-st.divider()
-st.markdown("Q-Sentinel v0.2.0 | ML + Threat Intelligence | Cybersecurity Focused")
+        # Confusion matrix heatmap
+        st.markdown("### Confusion Matrix")
+        cm = metrics["confusion_matrix"]
+        labels = ["Legitimate", "Phishing"]
+        fig = ff.create_annotated_heatmap(
+            z=cm,
+            x=labels,
+            y=labels,
+            colorscale=[[0, "#0e1117"], [1, "#00e5ff"]],
+            showscale=True,
+        )
+        fig.update_layout(
+            xaxis_title="Predicted",
+            yaxis_title="Actual",
+            paper_bgcolor="#0e1117",
+            plot_bgcolor="#0e1117",
+            font_color="#e0e0e0",
+            width=500,
+            height=450,
+        )
+        st.plotly_chart(fig, use_container_width=False)
+
+        # Classification report
+        if report_path.is_file():
+            st.markdown("### Classification Report")
+            st.code(report_path.read_text(), language="text")
+
+# ---------------------------------------------------------------------------
+# PAGE: Batch Analysis
+# ---------------------------------------------------------------------------
+elif page == "📁 Batch Analysis":
+    st.markdown("# 📁 Batch URL Analysis")
+    st.markdown("---")
+
+    if not _MODEL_AVAILABLE:
+        st.warning(
+            "⚠️ No trained model found.  "
+            "Run `python train.py --data <dataset.csv>` first."
+        )
+    else:
+        uploaded = st.file_uploader(
+            "Upload a CSV with a column named 'url'", type=["csv"]
+        )
+
+        if uploaded is not None:
+            try:
+                batch_df = pd.read_csv(uploaded)
+            except Exception as exc:
+                st.error(f"Could not read CSV: {exc}")
+                st.stop()
+
+            if "url" not in batch_df.columns:
+                st.error(
+                    f"CSV must contain a column named 'url'. "
+                    f"Found: {list(batch_df.columns)}"
+                )
+                st.stop()
+
+            clf, scaler = _get_model()
+
+            results = []
+            progress = st.progress(0, text="Scanning URLs...")
+            total = len(batch_df)
+            for i, url in enumerate(batch_df["url"]):
+                r = predict_url(str(url), clf=clf, scaler=scaler)
+                results.append({
+                    "url": url,
+                    "prediction": r["label_text"],
+                    "phishing_probability": round(r["probability_phishing"], 4),
+                })
+                progress.progress((i + 1) / total)
+
+            progress.empty()
+            result_df = pd.DataFrame(results)
+
+            # Summary
+            phish_count = sum(1 for r in results if r["prediction"] == "Potentially phishing")
+            legit_count = total - phish_count
+
+            c1, c2, c3 = st.columns(3)
+            c1.metric("Total URLs", total)
+            c2.metric("Potentially Phishing", phish_count)
+            c3.metric("Likely Legitimate", legit_count)
+
+            st.caption(
+                "⚠️ These predictions are statistical estimates, "
+                "not proof of safety."
+            )
+
+            # Distribution chart
+            fig = go.Figure(data=[
+                go.Bar(
+                    x=["Likely Legitimate", "Potentially Phishing"],
+                    y=[legit_count, phish_count],
+                    marker_color=["#00e5ff", "#ff1744"],
+                )
+            ])
+            fig.update_layout(
+                paper_bgcolor="#0e1117",
+                plot_bgcolor="#0e1117",
+                font_color="#e0e0e0",
+                yaxis_title="Count",
+                height=350,
+            )
+            st.plotly_chart(fig, use_container_width=True)
+
+            st.markdown("### Detailed Results")
+            st.dataframe(result_df, use_container_width=True, hide_index=True)
+
+            # Download
+            csv_out = result_df.to_csv(index=False).encode("utf-8")
+            st.download_button(
+                "⬇️ Download results as CSV",
+                csv_out,
+                file_name="qsentinel_batch_results.csv",
+                mime="text/csv",
+            )
+
+# ---------------------------------------------------------------------------
+# PAGE: About
+# ---------------------------------------------------------------------------
+elif page == "ℹ️ About":
+    st.markdown("# ℹ️ About Q-Sentinel")
+    st.markdown("---")
+    st.markdown(
+        """
+        **Q-Sentinel** is a hybrid quantum–classical AI system designed to
+        detect phishing URLs using machine-learning analysis of URL structure.
+
+        ### Current Version (v1 — Classical Baseline)
+
+        - **Feature extraction**: 13 lexical / structural features parsed from
+          the URL string (no network requests).
+        - **Model**: scikit-learn `RandomForestClassifier` with 100 estimators.
+        - **Preprocessing**: `StandardScaler` fitted only on training data.
+        - **Evaluation**: Precision, recall, F1-score, false-positive rate, and
+          confusion matrix computed on a held-out stratified test split.
+
+        ### Roadmap
+
+        - 🔬 **v2** — Quantum feature map & variational classifier (Qiskit /
+          PennyLane).
+        - 🌐 **v3** — Real-time URL reputation enrichment.
+        - 📦 **v4** — Browser extension & API.
+
+        ### ⚠️ Disclaimer
+
+        This tool provides *statistical estimates* based on URL lexical
+        patterns.  It is **not** a substitute for professional cybersecurity
+        software.  Always verify suspicious URLs through trusted sources.
+
+        ---
+        *Built for VTU Q-Sentinel Hackathon · 2026*
+        """
+    )

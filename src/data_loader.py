@@ -1,176 +1,166 @@
-"""
-Data Loader Module
+"""Dataset loading, validation, and domain-disjoint splitting for Q-Sentinel.
 
-Loads labelled URLs from CSV files, validates datasets, and maps labels.
-Supports various label formats (phishing/legitimate, 1/0, etc.).
+Supports:
+- Generic phishing URL CSVs (with configurable URL and Label columns).
+- Automatic detection and mapping for the PhiUSIIL Phishing URL Websites Dataset.
+- Extraction of domain groups for domain-disjoint evaluation to prevent model memorization.
+- Label convention throughout Q-Sentinel:
+    1 = Phishing
+    0 = Legitimate
 """
+
+from pathlib import Path
+from urllib.parse import urlparse
 
 import pandas as pd
-import numpy as np
+
+# Recognised text -> numeric label mappings (case-insensitive).
+_LABEL_MAP = {
+    "phishing": 1,
+    "malicious": 1,
+    "bad": 1,
+    "spam": 1,
+    "legitimate": 0,
+    "benign": 0,
+    "good": 0,
+    "safe": 0,
+}
 
 
-class DataLoader:
+def _extract_domain(url: str) -> str:
+    """Safely extract registered hostname/domain for grouping splits."""
+    if not isinstance(url, str) or not url.strip():
+        return "unknown"
+    clean = url.strip()
+    if "://" not in clean:
+        clean = "http://" + clean
+    try:
+        parsed = urlparse(clean)
+        return (parsed.hostname or "unknown").lower()
+    except Exception:
+        return "unknown"
+
+
+def load_dataset(
+    csv_path: str | Path,
+    url_col: str = "url",
+    label_col: str = "label",
+    is_phiusiil: bool | None = None,
+    nrows: int | None = None,
+    include_domain: bool = False,
+) -> pd.DataFrame:
+    """Load and validate a labelled URL dataset from *csv_path*.
+
+    Returns a DataFrame with columns: ``url`` (str), ``label`` (int, 0 or 1),
+    and optionally ``domain`` (str, if include_domain=True).
+
+    Label convention:
+        1 = Phishing
+        0 = Legitimate
+
+    Parameters
+    ----------
+    csv_path : str or Path
+        Path to CSV file.
+    url_col : str
+        Column name containing the URL string (case-insensitive lookup fallback).
+    label_col : str
+        Column name containing the target label.
+    is_phiusiil : bool or None
+        If True, or if PhiUSIIL signature columns (e.g., TLDLegitimateProb) are detected,
+        labels are inverted: PhiUSIIL's 0 (phishing) becomes 1, and 1 (legitimate) becomes 0.
+    nrows : int or None
+        Optional maximum number of rows to load.
     """
-    Handles CSV loading, validation, and label mapping for URL datasets.
-    
-    Attributes:
-        phishing_label: The canonical value representing a phishing URL.
-        legitimate_label: The canonical value representing a legitimate URL.
-    """
-    
-    def __init__(self, phishing_label=1, legitimate_label=0):
-        """
-        Initialize the DataLoader.
-        
-        Args:
-            phishing_label: The value used in the canonical label column for phishing.
-            legitimate_label: The value used in the canonical label column for legitimate.
-        """
-        self.phishing_label = phishing_label
-        self.legitimate_label = legitimate_label
-    
-    def load_csv(self, filepath, url_column='url', label_column='label'):
-        """
-        Load and validate a labelled URL dataset from CSV.
-        
-        Args:
-            filepath (str): Path to the CSV file.
-            url_column (str): Name of the column containing URLs.
-            label_column (str): Name of the column containing labels.
-            
-        Returns:
-            pd.DataFrame: DataFrame with 'url' and 'label' columns.
-            
-        Raises:
-            FileNotFoundError: If the file does not exist.
-            ValueError: If columns are missing, data is malformed, or contains NaN values.
-        """
-        try:
-            df = pd.read_csv(filepath)
-        except FileNotFoundError:
-            raise FileNotFoundError(f"CSV file not found: {filepath}")
-        except Exception as e:
-            raise ValueError(f"Failed to read CSV file: {e}")
-        
-        # Check for required columns
-        if url_column not in df.columns:
-            raise ValueError(f"Column '{url_column}' not found in CSV. Available: {list(df.columns)}")
-        if label_column not in df.columns:
-            raise ValueError(f"Column '{label_column}' not found in CSV. Available: {list(df.columns)}")
-        
-        # Check for missing values
-        if df[url_column].isna().any():
-            raise ValueError(f"Column '{url_column}' contains missing (NaN) values")
-        if df[label_column].isna().any():
-            raise ValueError(f"Column '{label_column}' contains missing (NaN) values")
-        
-        # Create output dataframe with standardized column names
-        result = pd.DataFrame({
-            'url': df[url_column].astype(str).str.strip(),
-            'label': df[label_column]
-        })
-        
-        return result
-    
-    def map_labels(self, df, label_mapping):
-        """
-        Map arbitrary label values to canonical phishing/legitimate labels.
-        
-        Args:
-            df (pd.DataFrame): DataFrame with 'url' and 'label' columns.
-            label_mapping (dict): Mapping from original labels to canonical values.
-                                  E.g., {'phishing': 1, 'legitimate': 0}
-            
-        Returns:
-            pd.DataFrame: DataFrame with mapped labels.
-            
-        Raises:
-            ValueError: If label_mapping is invalid or contains unmapped labels.
-        """
-        if not isinstance(label_mapping, dict) or len(label_mapping) < 2:
-            raise ValueError("label_mapping must be a dict with at least 2 entries")
-        
-        # Check for unmapped labels
-        unique_labels = df['label'].unique()
-        unmapped = set(unique_labels) - set(label_mapping.keys())
-        if unmapped:
-            raise ValueError(f"Unmapped labels in dataset: {unmapped}")
-        
-        df_copy = df.copy()
-        df_copy['label'] = df_copy['label'].map(label_mapping)
-        
-        return df_copy
-    
-    def validate_and_prepare(self, df):
-        """
-        Validate and prepare a dataset for training.
-        
-        Args:
-            df (pd.DataFrame): DataFrame with 'url' and 'label' columns.
-            
-        Returns:
-            tuple: (df_clean, class_counts) where df_clean is the validated DataFrame
-                   and class_counts is a dict of {label: count}.
-            
-        Raises:
-            ValueError: If dataset is invalid or lacks both classes.
-        """
-        if df is None or df.empty:
-            raise ValueError("DataFrame is empty")
-        
-        if 'url' not in df.columns or 'label' not in df.columns:
-            raise ValueError("DataFrame must have 'url' and 'label' columns")
-        
-        # Remove rows with empty URLs
-        df_clean = df[df['url'].str.strip().astype(bool)].copy()
-        
-        if df_clean.empty:
-            raise ValueError("No valid URLs found in dataset after cleaning")
-        
-        # Check class balance
-        class_counts = df_clean['label'].value_counts().to_dict()
-        
-        # Ensure both classes are present
-        unique_labels = set(class_counts.keys())
-        expected_labels = {self.phishing_label, self.legitimate_label}
-        
-        if not unique_labels.issubset(expected_labels) or len(unique_labels) < 2:
+    csv_path = Path(csv_path)
+    if not csv_path.is_file():
+        raise FileNotFoundError(f"Dataset not found: {csv_path}")
+
+    # Read preview to inspect column names
+    preview = pd.read_csv(csv_path, nrows=5)
+    cols = list(preview.columns)
+
+    # Auto-detect column case if exact match not found
+    if url_col not in cols:
+        lower_cols = {c.lower(): c for c in cols}
+        if url_col.lower() in lower_cols:
+            url_col = lower_cols[url_col.lower()]
+
+    if label_col not in cols:
+        lower_cols = {c.lower(): c for c in cols}
+        if label_col.lower() in lower_cols:
+            label_col = lower_cols[label_col.lower()]
+
+    if url_col not in cols:
+        raise ValueError(
+            f"URL column '{url_col}' not found. Available columns: {cols[:10]}..."
+        )
+    if label_col not in cols:
+        raise ValueError(
+            f"Label column '{label_col}' not found. Available columns: {cols[:10]}..."
+        )
+
+    # Detect if dataset is PhiUSIIL
+    phiusiil_markers = {"URLLength", "TLDLegitimateProb", "DomainTitleMatchScore", "IsDomainIP"}
+    detected_phiusiil = phiusiil_markers.issubset(set(cols))
+    if is_phiusiil is None:
+        is_phiusiil = detected_phiusiil
+
+    df = pd.read_csv(csv_path, usecols=[url_col, label_col], nrows=nrows)
+    df = df[[url_col, label_col]].copy()
+    df.columns = ["url", "label"]
+
+    # Drop missing values
+    before = len(df)
+    df.dropna(subset=["url", "label"], inplace=True)
+    dropped = before - len(df)
+    if dropped:
+        print(f"  Dropped {dropped} rows with missing URL or label.")
+
+    if df.empty:
+        raise ValueError("Dataset is empty after removing missing values.")
+
+    # Drop duplicate URLs
+    before_dupes = len(df)
+    df.drop_duplicates(subset=["url"], inplace=True)
+    if before_dupes - len(df) > 0:
+        print(f"  Removed {before_dupes - len(df)} duplicate URLs.")
+
+    # Map labels to 0/1
+    if pd.api.types.is_string_dtype(df["label"]):
+        df["label"] = df["label"].str.strip().str.lower()
+        mapped = df["label"].map(_LABEL_MAP)
+        unmapped = df["label"][mapped.isna()].unique()
+        if len(unmapped) > 0:
             raise ValueError(
-                f"Dataset must contain both phishing (label={self.phishing_label}) "
-                f"and legitimate (label={self.legitimate_label}) URLs. "
-                f"Found labels: {unique_labels}"
+                f"Cannot map these labels to 0/1: {list(unmapped)}. "
+                f"Accepted text labels: {list(_LABEL_MAP.keys())}"
             )
-        
-        return df_clean, class_counts
+        df["label"] = mapped.astype(int)
+    else:
+        unique = set(df["label"].unique())
+        if not unique.issubset({0, 1}):
+            raise ValueError(
+                f"Numeric labels must be 0 or 1, but found: {unique}"
+            )
+        df["label"] = df["label"].astype(int)
 
+    # Handle PhiUSIIL label inversion (0 = phishing, 1 = legitimate in raw dataset)
+    if is_phiusiil:
+        print("  [PhiUSIIL Detected] Inverting labels: raw 0 (phishing) -> 1, raw 1 (legitimate) -> 0.")
+        df["label"] = 1 - df["label"]
 
-def load_dataset(filepath, url_column='url', label_column='label', 
-                 label_mapping=None, phishing_label=1, legitimate_label=0):
-    """
-    Convenience function to load a dataset in one call.
-    
-    Args:
-        filepath (str): Path to CSV file.
-        url_column (str): Name of URL column.
-        label_column (str): Name of label column.
-        label_mapping (dict): Optional mapping from original to canonical labels.
-        phishing_label: Canonical phishing label value.
-        legitimate_label: Canonical legitimate label value.
-        
-    Returns:
-        tuple: (df_clean, class_counts) ready for training.
-        
-    Raises:
-        ValueError or FileNotFoundError: If dataset cannot be loaded or is invalid.
-    """
-    loader = DataLoader(phishing_label=phishing_label, 
-                       legitimate_label=legitimate_label)
-    
-    df = loader.load_csv(filepath, url_column=url_column, label_column=label_column)
-    
-    if label_mapping:
-        df = loader.map_labels(df, label_mapping)
-    
-    df_clean, class_counts = loader.validate_and_prepare(df)
-    
-    return df_clean, class_counts
+    # Ensure both classes are present
+    classes = set(df["label"].unique())
+    if classes != {0, 1}:
+        raise ValueError(
+            f"Dataset must contain both classes (0 and 1). Found: {classes}"
+        )
+
+    # Extract domain if requested
+    if include_domain:
+        df["domain"] = df["url"].apply(_extract_domain)
+    else:
+        df = df[["url", "label"]]
+
+    return df.reset_index(drop=True)
