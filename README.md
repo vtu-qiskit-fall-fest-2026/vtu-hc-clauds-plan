@@ -88,37 +88,38 @@ the quantum/ML technique you are applying.
 ## 🧩 Approach & Architecture
 
 ```
-Multimodal Threat Analysis Pipeline:
+Hybrid Quantum-Classical Threat Intelligence Pipeline:
 
-URL Input
+URL Input (Single Web Input, Batch CSV, or REST API)
     ↓
-URL Parsing & Validation
+URL Parsing & Invariant Normalization
+    (Scheme & Apex Domain Alignment, IDN/Punycode, Port/Path Extraction)
     ↓
-    ├─→ Classical Path: 12 Lexical Features → RandomForest ML
+25 Invariant Lexical & Structural Features
+(Shannon Entropy, Digit Ratios, Subdomain Hierarchy, Brand Spoofing, TLD Risk)
+    ↓
+    ├─→ Classical Engine: LightGBM GBDT (Calibrated Threshold τ = 0.830)
+    │     (99.17% Phishing Recall on Domain-Disjoint Unseen Hosts)
     │
-    └─→ Threat Intel Path: Hostname Lookup → AlienVault OTX API
-    
+    ├─→ Quantum Engine: Variational Quantum Classifier (VQC)
+    │     (Hilbert Space Feature Mapping via Ry/Rz Angles + Entangling CNOT Layers)
+    │
+    └─→ Threat Intel Path: OTX & IOC Telemetry Cache
     ↓
-Dual-Layer Decision Engine
-    ├─ ML Confidence Score
-    ├─ OTX Reputation Status
-    └─ Combined Risk Assessment
-    
+Ensemble Decision Engine
+    ├─ Classical Calibrated Risk Probability
+    ├─ Quantum Hilbert State Verification
+    └─ Known Campaign IOC Signatures
     ↓
-Output: Risk Level (🟢 LOW / 🟡 MEDIUM / 🔴 HIGH) + Confidence
+Output: Risk Level (🟢 LOW / 🟡 MEDIUM / 🔴 CRITICAL) + Explainable ML Evidence
 ```
 
-1. **URL Ingestion**: Accept URL strings from user input or batch CSV upload.
-
-2. **Feature Extraction**: Extract 12 lexical features using urllib.parse and regex analysis.
-
-3. **Classical ML Path**: RandomForest classifier predicts phishing probability based on features.
-
-4. **Threat Intelligence Path**: Query AlienVault OTX API for real-world malware/phishing database.
-
-5. **Decision Fusion**: Combine ML and threat intelligence scores for final risk assessment.
-
-6. **Interactive Dashboard**: Display results through Streamlit web interface with detailed analysis.
+1. **URL Ingestion & Normalization**: Accepts URL strings from web input, REST API, or batch CSV. Normalizes schemes and apex hostnames to eliminate `www.` biases.
+2. **Feature Extraction**: Extracts 25 lexical, structural, and information-theoretic indicators (Shannon entropy, brand spoofing in subdomains, suspicious TLDs, IP literals).
+3. **Classical ML Engine**: LightGBM Gradient Boosted Decision Trees tuned via validation threshold calibration to minimize false negatives and maximize phishing recall.
+4. **Quantum VQC Engine**: Parameterized 4-qubit quantum circuit simulator utilizing Pauli rotation encodings ($R_y(\theta), R_z(\theta)$) and parameter-shift gradients.
+5. **Threat Intelligence Integration**: AlienVault OTX / PhishTank campaign indicators for real-world threat correlation.
+6. **Interactive Dashboard**: Modern dark-mode SOC dashboard on Vercel + local Streamlit application with interactive Quantum Lab.
 
 ---
 
@@ -126,15 +127,15 @@ Output: Risk Level (🟢 LOW / 🟡 MEDIUM / 🔴 HIGH) + Confidence
 
 | Layer | Technology |
 | :--- | :--- |
-| Language | Python 3.14+ |
-| Web Framework | Streamlit |
-| ML Library | scikit-learn |
-| Data Processing | pandas, numpy |
-| Threat Intel API | AlienVault OTX |
-| API Communication | requests |
-| Testing | pytest |
-| Model Serialization | joblib |
-| Version Control | Git + GitHub |
+| **Language** | Python 3.11 / 3.12 / 3.14+ |
+| **Quantum Simulation** | NumPy Statevector Engine & Aer-compatible Parameter-Shift Circuits |
+| **Classical ML** | LightGBM, scikit-learn, joblib |
+| **Data & Feature Engineering** | pandas, numpy, scipy |
+| **Web Frontend** | Tailwind CSS, Chart.js, Streamlit |
+| **Serverless API** | Vercel Edge Serverless Functions (Python 3.12 runtime) |
+| **Threat Intel** | AlienVault OTX & Known Phishing IOC Feeds |
+| **Testing** | pytest (42 unit & integration tests) |
+| **Deployment** | Vercel (Production) + GitHub CI |
 
 ---
 
@@ -142,186 +143,143 @@ Output: Risk Level (🟢 LOW / 🟡 MEDIUM / 🔴 HIGH) + Confidence
 
 ```
 vtu-hc-clauds-plan/
-
-├── README.md                  # Complete project documentation
-
-├── requirements.txt           # Python dependencies
-
-├── .env.example              # API key template (safe to share)
-
-├── .gitignore                # Git protection rules
-
-├── app.py                    # Streamlit web dashboard
-
-├── train.py                  # Model training script
-
-├── RUN.bat                   # Windows batch launcher
-
-├── RUN.ps1                   # PowerShell launcher
-
-├── src/
-
+├── README.md                  # Hackathon documentation
+├── requirements.txt           # Lean serverless production dependencies (Vercel)
+├── requirements-dev.txt       # Local development & testing dependencies
+├── pytest.ini                 # Pytest configuration
+├── vercel.json                # Vercel serverless deployment routing
+├── app.py                     # Streamlit local web dashboard
+├── train.py                   # Classical training & multi-model benchmark CLI
+├── train_quantum.py           # Variational Quantum Classifier (VQC) training CLI
+├── RUN.bat                    # Windows batch launcher
+├── RUN.ps1                    # PowerShell launcher
+├── api/                       # Vercel Serverless REST API
+│   ├── index.py               # Main API handler & routing
+│   ├── scan.py                # POST /api/scan endpoint
+│   ├── batch.py               # POST /api/batch endpoint
+│   ├── metrics.py             # GET /api/metrics endpoint
+│   └── health.py              # GET /api/health endpoint
+├── public/                    # Production Web Application
+│   └── index.html             # Responsive SOC threat scanner & benchmark dashboard
+├── pages/                     # Streamlit multi-page app
+│   └── 1_Quantum_Lab.py       # Interactive Quantum VQC comparison page
+├── src/                       # Core Detection Engine
 │   ├── __init__.py
-
-│   ├── features.py           # URL feature extraction (12 features)
-
-│   ├── data_loader.py        # CSV data loading & validation
-
-│   ├── model.py              # RandomForest classifier
-
-│   └── threat_intel.py       # AlienVault OTX integration
-
-├── tests/
-
-│   ├── __init__.py
-
-│   ├── test_features.py      # 23 feature extraction tests
-
-│   ├── test_data_loader.py   # 16 data loading tests
-
-│   └── test_model.py         # 18 model training tests
-
-├── data/
-
-│   ├── README.md             # Dataset import instructions
-
-│   └── sample_urls.csv       # 20-URL test dataset
-
-├── models/                   # Trained models (generated)
-
-│   ├── phishing_model.pkl
-
-│   ├── phishing_model_scaler.pkl
-
-│   └── phishing_model_metadata.json
-
-└── results/                  # Evaluation outputs (generated)
-
-    ├── evaluation_metrics.json
-
-    └── test_predictions.json
+│   ├── features.py            # 25-feature invariant lexical extractor
+│   ├── data_loader.py         # PhiUSIIL loader & domain-disjoint splitting
+│   ├── model.py               # LightGBM / RF / Logistic pipelines & threshold tuning
+│   ├── quantum.py             # Pure NumPy state-vector quantum circuit simulator
+│   └── quantum_model.py       # Angle scaler & hybrid VQC training pipeline
+├── tests/                     # 42 unit and integration tests
+│   ├── test_features.py       # 13 feature extraction tests
+│   ├── test_features_extra.py # 4 IP, Punycode & edge-case tests
+│   ├── test_data_loader.py    # 8 data loading & validation tests
+│   ├── test_model.py          # 7 model training & inference tests
+│   └── test_quantum.py        # 10 quantum simulator & VQC gradient tests
+├── models/                    # Serialized production models
+│   ├── model.joblib           # Trained LightGBM pipeline + calibrated threshold
+│   ├── quantum_model.joblib   # Trained VQC circuit weights + angle scaler
+│   └── feature_names.json     # 25-feature schema
+└── results/                   # Verified evaluation artifacts
+    ├── metrics.json           # Production model test metrics
+    ├── quantum_metrics.json   # Quantum VQC training history & loss
+    ├── benchmark_comparison.json # Multi-model cross-split benchmark
+    └── test_predictions.csv   # Predictions on held-out test split
 ```
 
 ---
 
 ## 📊 Benchmark Results & Performance Findings
 
-The automated pipeline benchmarked classical ML and threat intelligence detection on a dataset of 20 URLs (10 phishing, 10 legitimate).
+Evaluated on 40,000 URLs from the **PhiUSIIL Phishing URL Websites Dataset** across 7,923 held-out test URLs:
 
-### 📈 Comparative Performance Summary
+### 📈 Multi-Model & Split Strategy Benchmark
 
-| Model | Paradigm | Accuracy | Precision | Recall | F1-Score | ROC-AUC |
+| Split Strategy | Model Architecture | Phishing Recall | Precision | F1-Score | False Positive Rate | Inference Latency |
 | :--- | :--- | :---: | :---: | :---: | :---: | :---: |
-| **RandomForest** | Classical ML | **100.0%** | **1.000** | **1.000** | **1.000** | **1.000** |
-| **AlienVault OTX** | Threat Intel | **100.0%** | **1.000** | **1.000** | **1.000** | **1.000** |
-| **Hybrid (RF + OTX)** | Combined | **100.0%** | **1.000** | **1.000** | **1.000** | **1.000** |
+| **Domain-Disjoint** | **LightGBM (Production)** | **99.17%** | **99.97%** | **0.9957** | **0.02%** | **0.01 ms** |
+| Domain-Disjoint | Random Forest | 99.14% | 100.00% | 0.9957 | 0.00% | 0.08 ms |
+| Domain-Disjoint | Logistic Regression | 98.60% | 99.97% | 0.9928 | 0.02% | 0.005 ms |
+| Random Stratified | LightGBM | 98.99% | 99.94% | 0.9946 | 0.04% | 0.01 ms |
+| Random Stratified | Random Forest | 99.02% | 99.91% | 0.9946 | 0.06% | 0.08 ms |
+| Random Stratified | Logistic Regression | 98.96% | 99.88% | 0.9942 | 0.08% | 0.005 ms |
+| Random Stratified | VQC (4-Qubit Sim) | 76.72% | 99.97% | 0.8681 | 0.01% | 0.42 ms |
 
-### 🔬 Key Research Insights
-
-1. **Feature Engineering Importance:** The 12 lexical features effectively capture URL obfuscation patterns used by phishing attacks (special characters, unusual domains, IP addresses).
-
-2. **Threat Intelligence Value:** Real-time OTX lookups provide immediate context on known malicious domains, complementing ML predictions.
-
-3. **Hybrid Approach:** Combining classical ML with threat intelligence achieves high accuracy while remaining interpretable and deployable.
-
-4. **Performance on Real URLs:** System processes 100+ URLs per second with caching, suitable for enterprise email security integration.
+### 🔬 Held-Out Confusion Matrix (Domain-Disjoint: 7,923 Unseen Domain URLs)
+* **True Negatives (Legitimate Correctly Passed):** 4,789
+* **False Positives (Legitimate Flagged):** 1
+* **False Negatives (Missed Phishing):** 26 (down from hundreds in uncalibrated baselines)
+* **True Positives (Phishing Correctly Caught):** 3,107
+* **Calibrated Decision Threshold ($	au$):** `0.830` | **ROC-AUC:** `0.9978` | **PR-AUC:** `0.9982`
 
 ---
 
 ## 🌐 Threat Intelligence Integration
 
-Q-Sentinel integrates with **AlienVault OTX** to provide real-time threat database lookups:
+Q-Sentinel integrates with **AlienVault OTX & Threat Feeds** to provide real-time domain lookups:
 
-- **Malware Detection:** Identifies URLs hosting known malware samples
-- **Phishing Indicators:** Flags domains in active phishing campaigns
-- **Reputation Scoring:** Provides -100 to +100 reputation scale
-- **Caching:** 1-hour cache reduces API calls while maintaining freshness
+- **Campaign Detection:** Identifies URLs linked to active credential harvesting campaigns
+- **Phishing Indicators:** Flags known high-risk domains and malicious top-level domains
+- **Zero-SSRF Inspection:** Pure lexical and offline database lookups ensure safe analysis without probing the remote target
 
-The API key is securely stored in `.env` (protected by `.gitignore`) and never committed to version control.
+The API keys can be securely stored in `.env` (protected by `.gitignore`) and are never exposed to client-side browsers.
 
 ---
 
 ## 🚀 How to Run
 
-### Prerequisites
-
-- Python 3.8 or newer
-- [Git](https://git-scm.com/downloads)
-- AlienVault OTX API key (optional, but recommended)
-
-### 1. Clone the repository
-
+### 1. Clone & Set Up Environment
 ```bash
 git clone https://github.com/vtu-qiskit-fall-fest-2026/vtu-hc-clauds-plan.git
 cd vtu-hc-clauds-plan
+
+python -m venv .venv
+source .venv/bin/activate       # On Windows: .venv\Scripts\activate
+pip install -r requirements-dev.txt
 ```
 
-### 2. Create a virtual environment
-
+### 2. Run the 42 Automated Test Suite
 ```bash
-python3 -m venv .venv
-source .venv/bin/activate        # Linux / macOS
-# .venv\Scripts\activate         # Windows (PowerShell)
+python -m pytest tests/ -v
 ```
 
-### 3. Install dependencies
-
-```bash
-pip install --upgrade pip
-pip install -r requirements.txt
-```
-
-### 4. Configure API Key (Optional)
-
-```bash
-cp .env.example .env
-# Edit .env and add your AlienVault OTX API key
-```
-
-### 5. Run the Full ML Pipeline
-
-```bash
-python3 -m src.main
-```
-
-### 6. Launch the Interactive Dashboard
-
+### 3. Launch the Local Streamlit App
 ```bash
 streamlit run app.py
 ```
+The dashboard opens at `http://localhost:8501` featuring the URL Scanner and Quantum Lab.
 
-The dashboard opens at `http://localhost:8501`
-
-### 7. Run Tests
-
+### 4. Train & Benchmark Models
 ```bash
-pytest tests/ -v
-```
+# Train LightGBM with domain-disjoint splitting:
+python train.py --split-mode domain_disjoint
 
-### 8. Train with Your Own Dataset
+# Train Quantum VQC:
+python train_quantum.py --qubits 4 --layers 3
 
-```bash
-python train.py --data your_dataset.csv --label-column label
+# Run comprehensive comparative benchmark:
+python train.py --benchmark
 ```
 
 ---
 
 ## 🎬 Demo Video & Working Prototype
 
+- **Live Production App:** [https://qsentinental.vercel.app](https://qsentinental.vercel.app)
 - **Demo Video (YouTube):** [Watch the demo](https://youtu.be/LQtrbrABnbw?si=Ebv2eoGLbYADO3tc)
-
 - **Working Prototype (Web Dashboard):** Launch locally with `streamlit run app.py`
 
 - **Interactive Pages:**
-  - **Scanner:** Single URL analysis with ML + Threat Intel
-  - **Evaluation:** Model performance metrics and confusion matrix
-  - **Batch Analysis:** Upload CSV and analyze multiple URLs
+  - **URL Scanner:** Single URL analysis with Classical LightGBM + Quantum VQC simulation
+  - **Quantum Lab:** Parameterized circuit schematic, loss convergence, and comparative metrics
+  - **Batch Analysis:** Upload CSV or paste multiple URLs and export analysis results
+  - **Evaluation:** Model performance metrics, benchmark comparisons, and confusion matrix
 
 - **Sample Test URLs:**
-  - ✅ https://www.google.com (Expected: 🟢 LOW)
-  - ✅ https://github.com (Expected: 🟢 LOW)
-  - ✅ https://paypal-confirm.tk/verify (Expected: 🔴 HIGH)
-  - ✅ http://193.168.1.1/admin (Expected: 🔴 HIGH)
+  - ✅ `https://www.google.com` (Expected: 🟢 LOW RISK)
+  - ✅ `https://github.com` (Expected: 🟢 LOW RISK)
+  - ✅ `http://paypa1-verify.com/login?token=123` (Expected: 🔴 CRITICAL THREAT)
+  - ✅ `http://192.168.1.1/admin` (Expected: 🔴 CRITICAL THREAT)
 
 ---
 
@@ -375,16 +333,16 @@ git branch -d feature/my-feature
 
 ## ✅ Submission Checklist
 
-- [x] Repository created and **private** ✅ (VTU hackathon repo is private)
-- [x] All team members added as **collaborators** ✅ (Team members have access)
-- [x] `README.md` updated with project details and architecture ✅ (Q-Glitch template format)
-- [x] `requirements.txt` committed with all dependencies ✅ (9 packages: pandas, numpy, scikit-learn, streamlit, plotly, joblib, pytest, requests, python-dotenv)
-- [x] Source code implemented (`src/`, `tests/`, `data/`) ✅ (features.py, data_loader.py, model.py, threat_intel.py - 350+ lines each)
-- [x] Code pushed to `main` and builds successfully ✅ (All files committed and pushed)
-- [x] Interactive web dashboard implemented (`app.py`) ✅ (3-page Streamlit dashboard: Scanner, Evaluation, Batch Analysis - 631 lines)
-- [x] 57 automated tests passing (`tests/`) ✅ (test_features.py: 23, test_data_loader.py: 16, test_model.py: 18 - 100% pass rate)
-- [x] Threat intelligence integration working ✅ (AlienVault OTX API integrated with caching and error handling)
-- [x] Model training and evaluation complete ✅ (RandomForest model trained, saved, evaluated with 12 lexical features)
+- [x] Repository created and configured ✅
+- [x] All team members added as collaborators ✅
+- [x] `README.md` updated with real quantum-classical architecture and metrics ✅
+- [x] Dependencies committed (`requirements.txt`, `requirements-dev.txt`) ✅
+- [x] Source code implemented (`src/`, `tests/`, `models/`, `results/`, `api/`, `public/`) ✅
+- [x] Code pushed to `main` and verified ✅
+- [x] Interactive web dashboard deployed to production ([https://qsentinental.vercel.app](https://qsentinental.vercel.app)) ✅
+- [x] 42 automated tests passing (`tests/`) ✅
+- [x] Quantum Variational Classifier implemented with parameter-shift gradients ✅
+- [x] Model evaluated on 40,000 URLs with domain-disjoint validation and threshold calibration ✅
 
 ---
 
@@ -395,6 +353,7 @@ git branch -d feature/my-feature
 | ⚛️ Qiskit Documentation | https://docs.quantum.ibm.com/ |
 | 🔐 AlienVault OTX | https://otx.alienvault.com/api |
 | 📊 Streamlit Docs | https://docs.streamlit.io/ |
+| 🤖 LightGBM Docs | https://lightgbm.readthedocs.io/ |
 | 🤖 scikit-learn | https://scikit-learn.org/ |
 | 📋 GitHub Docs | https://docs.github.com/ |
 | 🐍 Python Official | https://python.org/ |
@@ -413,7 +372,7 @@ All code, documentation, and research are copyright © 2026 and licensed under t
 
 **Q-Sentinel** · Team ID `VTU-QFF-HC-0191` · Tier `Online`
 
-Built with 🔐 Classical ML + 🌐 Threat Intelligence for the VTU-QFF Hackathon — Visvesvaraya Technological University, Belagavi
+Built with ⚛️ Quantum Machine Learning + ⚡ Gradient Boosted Trees + 🌐 Threat Intelligence for the VTU-QFF Hackathon — Visvesvaraya Technological University, Belagavi
 
 <br/>
 
