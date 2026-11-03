@@ -22,6 +22,7 @@ try:
     from src.model import load_model, predict_url
     from src.quantum_model import load_quantum_model, predict_url_quantum
     from src.security import validate_and_sanitize_url
+    from src.character_evidence import extract_character_evidence
     from src.typosquatting import (
         DEFAULT_PROTECTED_BRANDS,
         check_domain_impersonation,
@@ -34,6 +35,7 @@ except Exception as e:
         from api.src.model import load_model, predict_url
         from api.src.quantum_model import load_quantum_model, predict_url_quantum
         from api.src.security import validate_and_sanitize_url
+        from api.src.character_evidence import extract_character_evidence
         from api.src.typosquatting import (
             DEFAULT_PROTECTED_BRANDS,
             check_domain_impersonation,
@@ -56,6 +58,7 @@ except Exception as e:
         load_quantum_model = None
         predict_url_quantum = None
         validate_and_sanitize_url = None
+        extract_character_evidence = None
         check_domain_impersonation = None
         extract_domain_components = None
 
@@ -373,6 +376,14 @@ def perform_full_scan(url: str) -> dict:
     evidence = analyze_url_heuristics(clean_url, feats)
     threat_intel = get_threat_intelligence(clean_url)
 
+    # 6b. Character-level phishing evidence
+    char_evidence = []
+    if extract_character_evidence:
+        try:
+            char_evidence = extract_character_evidence(clean_url, feats)
+        except Exception:
+            char_evidence = []
+
     # 7. Multi-Modal Synthesis & Classification Engine
     detection_engines = []
     reasons = []
@@ -508,6 +519,7 @@ def perform_full_scan(url: str) -> dict:
         },
         "reasons": reasons,
         "model_status": model_status,
+        "character_evidence": char_evidence,
 
         # Backward compatibility fields for frontend and historical consumers
         "input_valid": True,
