@@ -28,7 +28,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import FunctionTransformer, MinMaxScaler
 
-from .features import FEATURE_NAMES, extract_features
+from .features import FEATURE_NAMES, extract_features, model_input_url
 from .model import MODEL_DIR, RANDOM_SEED, RESULTS_DIR, _featurise
 from .quantum import VariationalQuantumClassifier
 
@@ -169,7 +169,7 @@ def load_quantum_model(model_path: Path | None = None) -> dict:
 def predict_url_quantum(url: str, bundle: dict | None = None) -> dict:
     """Classify *url* with the hybrid quantum model."""
     bundle = bundle or load_quantum_model()
-    feats = np.array([extract_features(url)], dtype=np.float64)
+    feats = np.array([extract_features(model_input_url(url))], dtype=np.float64)
     angles = bundle["scaler"].transform(feats[:, bundle["feature_idx"]])
     p = float(bundle["vqc"].predict_proba(angles)[0])
     label = int(p >= 0.5)

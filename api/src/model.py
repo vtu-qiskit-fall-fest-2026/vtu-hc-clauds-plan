@@ -35,13 +35,18 @@ from sklearn.metrics import (
 from sklearn.model_selection import GroupShuffleSplit, train_test_split
 from sklearn.preprocessing import StandardScaler
 
-from .features import FEATURE_NAMES, extract_features
+from .features import FEATURE_NAMES, extract_features, model_input_url
+from .tree_ensemble import TreeEnsembleClassifier
 
-# Try importing LightGBM, fallback to HistGradientBoosting if unavailable
+# Try importing LightGBM, fallback to HistGradientBoosting if unavailable.
+# LightGBM is only needed for *training*: saved models are exported to a
+# pure-NumPy TreeEnsembleClassifier. Catch every exception, not just
+# ImportError — on hosts without OpenMP (e.g. Vercel) the import raises
+# OSError ("libgomp.so.1: cannot open shared object file").
 try:
     import lightgbm as lgb
     _HAS_LIGHTGBM = True
-except ImportError:
+except Exception:
     _HAS_LIGHTGBM = False
 
 class ModelBundle(tuple):
@@ -63,8 +68,8 @@ RESULTS_DIR = Path("results")
 
 
 def _featurise(urls: pd.Series | list) -> np.ndarray:
-    """Extract feature matrix from an iterable of URL strings."""
-    return np.array([extract_features(u) for u in urls], dtype=np.float64)
+    """Extract the model feature matrix (scheme + host only) from URL strings."""
+    return np.array([extract_features(model_input_url(u)) for u in urls], dtype=np.float64)
 
 
 def tune_threshold_for_recall(
@@ -227,6 +232,18 @@ def train_and_evaluate(
 
     clf.fit(X_train, y_train)
 
+    # Export LightGBM to a pure-NumPy ensemble so the saved model can be served
+    # without the lightgbm native library. Verify it reproduces LightGBM exactly.
+    if _HAS_LIGHTGBM and isinstance(clf, lgb.LGBMClassifier):
+        exported = TreeEnsembleClassifier.from_lightgbm(clf)
+        max_diff = float(np.max(np.abs(
+            exported.predict_proba(X_val)[:, 1] - clf.predict_proba(X_val)[:, 1]
+        )))
+        if max_diff > 1e-6:
+            raise RuntimeError(f"Exported tree ensemble deviates from LightGBM by {max_diff}")
+        print(f"  Exported LightGBM to NumPy tree ensemble (max deviation {max_diff:.1e})")
+        clf = exported
+
     # Threshold calibration on VALIDATION data (never touch test set)
     probs_val = clf.predict_proba(X_val)[:, 1]
     optimal_thresh = tune_threshold_for_recall(y_val, probs_val, min_recall=target_recall, max_fpr=max_fpr)
@@ -282,7 +299,8 @@ def train_and_evaluate(
         "threshold": optimal_thresh,
         "feature_names": FEATURE_NAMES,
         "model_type": model_type,
-        "version": "v2.0-phiusiil-enhanced",
+        "version": "v2.1-domain-level",
+        "input_scope": "scheme+netloc (path and query excluded)",
     }
     joblib.dump(bundle, model_path / "model.joblib")
     with open(model_path / "feature_names.json", "w") as f:
@@ -335,7 +353,7 @@ def predict_url(url: str, clf=None, scaler=None, threshold: float | None = None)
     if threshold is None:
         threshold = getattr(clf, "threshold", 0.5)
 
-    features = extract_features(url)
+    features = extract_features(model_input_url(url))
     X = scaler.transform([features])
     proba = clf.predict_proba(X)[0]
     p_phish = float(proba[1])

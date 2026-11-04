@@ -86,14 +86,14 @@
 
   <!-- Header Navigation -->
   <header class="border-b border-slate-800/80 bg-slate-950/70 backdrop-blur-md sticky top-0 z-50">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-      <div class="flex items-center space-x-3">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2 sm:py-0 sm:h-16 flex flex-wrap sm:flex-nowrap items-center justify-between gap-2">
+      <div class="flex items-center space-x-3 shrink-0">
         <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-cyan-500/20 to-purple-500/30 border border-cyan-400/30 flex items-center justify-center text-cyan-400 text-lg shadow-glow-cyan">
           <i class="fa-solid fa-shield-halved"></i>
         </div>
         <div>
           <div class="flex items-center space-x-2">
-            <span class="font-extrabold text-lg tracking-wider text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-sky-300 to-purple-400 font-mono">Q-SENTINEL</span>
+            <span class="font-extrabold text-lg tracking-wider text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-sky-300 to-purple-400 font-mono whitespace-nowrap">Q-SENTINEL</span>
             <span class="px-2 py-0.5 text-xs font-mono font-medium rounded-full bg-cyan-950 text-cyan-400 border border-cyan-800/60">v1.2 HYBRID</span>
           </div>
           <p class="text-[11px] text-slate-400 hidden sm:block">Quantum-Classical Phishing URL Threat Intelligence Engine</p>
@@ -101,18 +101,18 @@
       </div>
 
       <!-- Navigation Tabs -->
-      <nav class="flex items-center space-x-1 sm:space-x-2 bg-slate-900/80 p-1 rounded-xl border border-slate-800 text-xs sm:text-sm font-medium">
-        <button onclick="switchTab('scanner')" id="tab-scanner" class="px-3 py-1.5 rounded-lg transition-all text-cyan-400 bg-cyan-500/10 border border-cyan-500/30 font-semibold flex items-center gap-1.5">
-          <i class="fa-solid fa-radar"></i> <span class="hidden md:inline">URL</span> Scanner
+      <nav class="w-full sm:w-auto flex items-center justify-between sm:justify-start space-x-1 sm:space-x-2 bg-slate-900/80 p-1 rounded-xl border border-slate-800 text-xs sm:text-sm font-medium">
+        <button onclick="switchTab('scanner')" id="tab-scanner" class="px-2 sm:px-3 py-1.5 rounded-lg transition-all text-cyan-400 bg-cyan-500/10 border border-cyan-500/30 font-semibold flex items-center gap-1.5">
+          <i class="fa-solid fa-radar hidden sm:inline"></i> <span class="hidden md:inline">URL</span> Scanner
         </button>
-        <button onclick="switchTab('quantum')" id="tab-quantum" class="px-3 py-1.5 rounded-lg transition-all text-slate-400 hover:text-slate-200 hover:bg-slate-800/50 flex items-center gap-1.5">
-          <i class="fa-solid fa-atom"></i> Quantum Lab
+        <button onclick="switchTab('quantum')" id="tab-quantum" class="px-2 sm:px-3 py-1.5 rounded-lg transition-all text-slate-400 hover:text-slate-200 hover:bg-slate-800/50 flex items-center gap-1.5">
+          <i class="fa-solid fa-atom hidden sm:inline"></i> Quantum<span class="hidden sm:inline"> Lab</span>
         </button>
-        <button onclick="switchTab('batch')" id="tab-batch" class="px-3 py-1.5 rounded-lg transition-all text-slate-400 hover:text-slate-200 hover:bg-slate-800/50 flex items-center gap-1.5">
-          <i class="fa-solid fa-layer-group"></i> Batch Analysis
+        <button onclick="switchTab('batch')" id="tab-batch" class="px-2 sm:px-3 py-1.5 rounded-lg transition-all text-slate-400 hover:text-slate-200 hover:bg-slate-800/50 flex items-center gap-1.5">
+          <i class="fa-solid fa-layer-group hidden sm:inline"></i> Batch<span class="hidden sm:inline"> Analysis</span>
         </button>
-        <button onclick="switchTab('metrics')" id="tab-metrics" class="px-3 py-1.5 rounded-lg transition-all text-slate-400 hover:text-slate-200 hover:bg-slate-800/50 flex items-center gap-1.5">
-          <i class="fa-solid fa-chart-line"></i> Evaluation
+        <button onclick="switchTab('metrics')" id="tab-metrics" class="px-2 sm:px-3 py-1.5 rounded-lg transition-all text-slate-400 hover:text-slate-200 hover:bg-slate-800/50 flex items-center gap-1.5">
+          <i class="fa-solid fa-chart-line hidden sm:inline"></i> Evaluation
         </button>
       </nav>
 
@@ -174,7 +174,7 @@
         <div class="mt-4 flex flex-wrap items-center gap-2 text-xs">
           <span class="text-slate-500 font-mono"><i class="fa-solid fa-flask"></i> Quick Samples:</span>
           <button onclick="setSample('http://paypa1-verify.com/signin?id=12345&token=abc')" class="px-2.5 py-1 rounded-md bg-rose-950/40 text-rose-300 hover:bg-rose-900/40 border border-rose-800/40 font-mono transition-colors">PayPal Phishing</button>
-          <button onclick="setSample('http://192.168.1.1/admin/login.php?redirect=evil.com')" class="px-2.5 py-1 rounded-md bg-rose-950/40 text-rose-300 hover:bg-rose-900/40 border border-rose-800/40 font-mono transition-colors">Raw IP Host</button>
+          <button onclick="setSample('http://45.33.32.156/admin/login.php?redirect=evil.com')" class="px-2.5 py-1 rounded-md bg-rose-950/40 text-rose-300 hover:bg-rose-900/40 border border-rose-800/40 font-mono transition-colors">Raw IP Host</button>
           <button onclick="setSample('http://appleid.apple.com.secure-login.info/verify')" class="px-2.5 py-1 rounded-md bg-rose-950/40 text-rose-300 hover:bg-rose-900/40 border border-rose-800/40 font-mono transition-colors">Apple Subdomain Spoof</button>
           <button onclick="setSample('https://en.wikipedia.org/wiki/Phishing')" class="px-2.5 py-1 rounded-md bg-emerald-950/40 text-emerald-300 hover:bg-emerald-900/40 border border-emerald-800/40 font-mono transition-colors">Legitimate Wikipedia</button>
           <button onclick="setSample('https://github.com/narasimhakulkarni393-dotcom/qsentinental')" class="px-2.5 py-1 rounded-md bg-emerald-950/40 text-emerald-300 hover:bg-emerald-900/40 border border-emerald-800/40 font-mono transition-colors">Legitimate GitHub</button>
@@ -374,7 +374,7 @@
             id="batch-input" 
             rows="6" 
             class="w-full p-4 bg-slate-900/90 border border-slate-700/80 rounded-xl text-slate-100 placeholder-slate-500 focus:outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-500/20 text-xs sm:text-sm font-mono"
-            placeholder="http://paypa1-verify.com/signin&#10;https://en.wikipedia.org/wiki/Phishing&#10;http://192.168.1.1/admin&#10;https://www.google.com"
+            placeholder="http://paypa1-verify.com/signin&#10;https://en.wikipedia.org/wiki/Phishing&#10;http://45.33.32.156/admin&#10;https://www.google.com"
           ></textarea>
         </div>
 
@@ -432,22 +432,22 @@
         <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 font-mono">
           <div class="bg-slate-900/70 p-4 rounded-xl border border-cyan-500/20">
             <span class="text-xs text-slate-400">PRECISION</span>
-            <div id="metric-precision" class="text-2xl font-black text-cyan-400 mt-1">0.9997</div>
+            <div id="metric-precision" class="text-2xl font-black text-cyan-400 mt-1">0.9133</div>
             <span class="text-[10px] text-slate-500">TP / (TP + FP)</span>
           </div>
           <div class="bg-slate-900/70 p-4 rounded-xl border border-purple-500/20">
             <span class="text-xs text-slate-400">RECALL</span>
-            <div id="metric-recall" class="text-2xl font-black text-purple-400 mt-1">0.9917</div>
+            <div id="metric-recall" class="text-2xl font-black text-purple-400 mt-1">0.9116</div>
             <span class="text-[10px] text-slate-500">TP / (TP + FN)</span>
           </div>
           <div class="bg-slate-900/70 p-4 rounded-xl border border-emerald-500/20">
             <span class="text-xs text-slate-400">F1-SCORE</span>
-            <div id="metric-f1" class="text-2xl font-black text-emerald-400 mt-1">0.9957</div>
+            <div id="metric-f1" class="text-2xl font-black text-emerald-400 mt-1">0.9125</div>
             <span class="text-[10px] text-slate-500">Harmonic Mean</span>
           </div>
           <div class="bg-slate-900/70 p-4 rounded-xl border border-rose-500/20">
             <span class="text-xs text-slate-400">FALSE POSITIVE RATE</span>
-            <div id="metric-fpr" class="text-2xl font-black text-rose-400 mt-1">0.0002</div>
+            <div id="metric-fpr" class="text-2xl font-black text-rose-400 mt-1">0.0566</div>
             <span class="text-[10px] text-slate-500">FP / (FP + TN)</span>
           </div>
         </div>
@@ -461,19 +461,19 @@
           <div class="max-w-md mx-auto grid grid-cols-2 gap-3 text-center font-mono">
             <div class="p-4 rounded-lg bg-emerald-950/40 border border-emerald-800/40">
               <span class="text-xs text-emerald-400">TRUE NEGATIVE (Legitimate)</span>
-              <div id="cm-tn" class="text-2xl font-bold text-slate-100 mt-1">4789</div>
+              <div id="cm-tn" class="text-2xl font-bold text-slate-100 mt-1">4519</div>
             </div>
             <div class="p-4 rounded-lg bg-slate-900/60 border border-slate-800">
               <span class="text-xs text-slate-400">FALSE POSITIVE (Type I)</span>
-              <div id="cm-fp" class="text-2xl font-bold text-slate-100 mt-1">1</div>
+              <div id="cm-fp" class="text-2xl font-bold text-slate-100 mt-1">271</div>
             </div>
             <div class="p-4 rounded-lg bg-slate-900/60 border border-slate-800">
               <span class="text-xs text-slate-400">FALSE NEGATIVE (Type II)</span>
-              <div id="cm-fn" class="text-2xl font-bold text-slate-100 mt-1">26</div>
+              <div id="cm-fn" class="text-2xl font-bold text-slate-100 mt-1">277</div>
             </div>
             <div class="p-4 rounded-lg bg-rose-950/40 border border-rose-800/40">
               <span class="text-xs text-rose-400">TRUE POSITIVE (Phishing)</span>
-              <div id="cm-tp" class="text-2xl font-bold text-slate-100 mt-1">3107</div>
+              <div id="cm-tp" class="text-2xl font-bold text-slate-100 mt-1">2856</div>
             </div>
           </div>
         </div>
@@ -483,7 +483,7 @@
           <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
             <div>
               <h3 class="text-sm font-bold text-slate-200 font-mono uppercase">Architecture & Split Strategy Benchmark</h3>
-              <p class="text-xs text-slate-400">Trained and validated on 40,000 URLs from the PhiUSIIL Phishing Websites Dataset.</p>
+              <p class="text-xs text-slate-400">Trained and validated on 40,000 URLs from the PhiUSIIL Phishing Websites Dataset. Models score the scheme + domain only (see README for why).</p>
             </div>
             <span class="px-2.5 py-1 text-xs font-mono rounded bg-cyan-950 text-cyan-300 border border-cyan-800">Evaluated on Held-Out Test Data</span>
           </div>
@@ -505,64 +505,64 @@
                 <tr class="bg-cyan-950/20">
                   <td class="p-3 font-semibold text-purple-300">Domain-Disjoint</td>
                   <td class="p-3 font-bold text-cyan-300"><i class="fa-solid fa-bolt text-cyan-400 mr-1"></i> LightGBM (Production)</td>
-                  <td class="p-3 font-bold text-emerald-400">99.17%</td>
-                  <td class="p-3">99.97%</td>
-                  <td class="p-3">0.9957</td>
-                  <td class="p-3">0.02%</td>
-                  <td class="p-3 text-slate-400">0.01 ms</td>
+                  <td class="p-3 font-bold text-emerald-400">91.16%</td>
+                  <td class="p-3">91.33%</td>
+                  <td class="p-3">0.9125</td>
+                  <td class="p-3">5.66%</td>
+                  <td class="p-3 text-slate-400">0.18 ms</td>
                 </tr>
                 <tr>
                   <td class="p-3 font-semibold text-purple-300">Domain-Disjoint</td>
                   <td class="p-3 text-slate-300">Random Forest</td>
-                  <td class="p-3 text-emerald-400">99.14%</td>
-                  <td class="p-3">100.00%</td>
-                  <td class="p-3">0.9957</td>
-                  <td class="p-3">0.00%</td>
-                  <td class="p-3 text-slate-400">0.08 ms</td>
+                  <td class="p-3 text-emerald-400">91.09%</td>
+                  <td class="p-3">90.17%</td>
+                  <td class="p-3">0.9063</td>
+                  <td class="p-3">6.49%</td>
+                  <td class="p-3 text-slate-400">0.02 ms</td>
                 </tr>
                 <tr>
                   <td class="p-3 font-semibold text-purple-300">Domain-Disjoint</td>
                   <td class="p-3 text-slate-300">Logistic Regression</td>
-                  <td class="p-3 text-emerald-400">98.60%</td>
-                  <td class="p-3">99.97%</td>
-                  <td class="p-3">0.9928</td>
-                  <td class="p-3">0.02%</td>
-                  <td class="p-3 text-slate-400">0.005 ms</td>
+                  <td class="p-3 text-emerald-400">91.29%</td>
+                  <td class="p-3">89.51%</td>
+                  <td class="p-3">0.9039</td>
+                  <td class="p-3">6.99%</td>
+                  <td class="p-3 text-slate-400">&lt;0.01 ms</td>
                 </tr>
                 <tr>
                   <td class="p-3 text-slate-400">Random Stratified</td>
                   <td class="p-3 text-slate-300">LightGBM</td>
-                  <td class="p-3 text-emerald-400">98.99%</td>
-                  <td class="p-3">99.94%</td>
-                  <td class="p-3">0.9946</td>
-                  <td class="p-3">0.04%</td>
-                  <td class="p-3 text-slate-400">0.01 ms</td>
+                  <td class="p-3 text-emerald-400">92.31%</td>
+                  <td class="p-3">91.64%</td>
+                  <td class="p-3">0.9197</td>
+                  <td class="p-3">5.84%</td>
+                  <td class="p-3 text-slate-400">0.17 ms</td>
                 </tr>
                 <tr>
                   <td class="p-3 text-slate-400">Random Stratified</td>
                   <td class="p-3 text-slate-300">Random Forest</td>
-                  <td class="p-3 text-emerald-400">99.02%</td>
-                  <td class="p-3">99.91%</td>
-                  <td class="p-3">0.9946</td>
-                  <td class="p-3">0.06%</td>
-                  <td class="p-3 text-slate-400">0.08 ms</td>
+                  <td class="p-3 text-emerald-400">91.58%</td>
+                  <td class="p-3">92.48%</td>
+                  <td class="p-3">0.9203</td>
+                  <td class="p-3">5.17%</td>
+                  <td class="p-3 text-slate-400">0.01 ms</td>
                 </tr>
                 <tr>
                   <td class="p-3 text-slate-400">Random Stratified</td>
                   <td class="p-3 text-slate-300">Logistic Regression</td>
-                  <td class="p-3 text-emerald-400">98.96%</td>
-                  <td class="p-3">99.88%</td>
-                  <td class="p-3">0.9942</td>
-                  <td class="p-3">0.08%</td>
-                  <td class="p-3 text-slate-400">0.005 ms</td>
+                  <td class="p-3 text-emerald-400">90.60%</td>
+                  <td class="p-3">90.96%</td>
+                  <td class="p-3">0.9078</td>
+                  <td class="p-3">6.25%</td>
+                  <td class="p-3 text-slate-400">&lt;0.01 ms</td>
                 </tr>
                 <tr class="bg-purple-950/20">
                   <td class="p-3 font-semibold text-purple-400">Random Stratified</td>
                   <td class="p-3 font-bold text-purple-300"><i class="fa-solid fa-atom text-purple-400 mr-1"></i> VQC (4-Qubit Sim)</td>
-                  <td class="p-3 text-amber-400">76.72%</td>
-                  <td class="p-3">99.97%</td>
-                  <td class="p-3">0.8681</td>
-                  <td class="p-3">0.01%</td>
+                  <td class="p-3 text-amber-400">61.55%</td>
+                  <td class="p-3">98.27%</td>
+                  <td class="p-3">0.7569</td>
+                  <td class="p-3">0.81%</td>
                   <td class="p-3 text-slate-400">0.42 ms</td>
                 </tr>
               </tbody>
@@ -764,14 +764,14 @@
             datasets: [
               {
                 label: 'Quantum VQC',
-                data: [0.9997, 0.7672, 0.8681, 0.0001],
+                data: [0.9827, 0.6155, 0.7569, 0.0081],
                 backgroundColor: 'rgba(179, 136, 255, 0.85)',
                 borderColor: '#b388ff',
                 borderWidth: 1
               },
               {
                 label: 'Classical LightGBM',
-                data: [0.9997, 0.9917, 0.9957, 0.0002],
+                data: [0.9133, 0.9116, 0.9125, 0.0566],
                 backgroundColor: 'rgba(0, 229, 255, 0.85)',
                 borderColor: '#00e5ff',
                 borderWidth: 1
@@ -847,7 +847,7 @@
         "https://www.google.com/search?q=cybersecurity",
         "http://secure-bankofamerica.com-verify.tk/login.html",
         "https://en.wikipedia.org/wiki/Phishing",
-        "http://192.168.1.1/admin/auth.php",
+        "http://45.33.32.156/admin/auth.php",
         "http://free-iphone-winner.com/claim-prize-now.php",
         "https://github.com/narasimhakulkarni393-dotcom/qsentinental"
       ].join('\n');

@@ -110,6 +110,28 @@ def _is_ip_hostname(hostname: str) -> bool:
     return bool(_IPV4_RE.match(clean)) or (":" in hostname and bool(_IPV6_RE.match(hostname)))
 
 
+def model_input_url(url: str) -> str:
+    """Reduce *url* to ``scheme://netloc`` — the part the ML models are trained on.
+
+    In the PhiUSIIL dataset every legitimate URL is a bare homepage (no path),
+    while ~27% of phishing URLs carry a path. A model that sees the path learns
+    the shortcut "has a path => phishing" and flags every real article/page
+    (e.g. en.wikipedia.org/wiki/Phishing). The models therefore score only the
+    scheme + authority (userinfo, host, port). Path-level signals such as lure
+    keywords are handled by the heuristic and typosquatting engines instead.
+    """
+    if not isinstance(url, str) or not url.strip():
+        return ""
+    raw = url.strip()
+    try:
+        parsed = _safe_parse(raw)
+    except ValueError:
+        return raw
+    if not parsed.netloc:
+        return raw
+    return f"{parsed.scheme}://{parsed.netloc}"
+
+
 def extract_features(url: str) -> list[float]:
     """Return a fixed numerical feature vector for *url*.
 

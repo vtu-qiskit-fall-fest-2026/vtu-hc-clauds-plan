@@ -98,8 +98,8 @@ URL Parsing & Invariant Normalization
 25 Invariant Lexical & Structural Features
 (Shannon Entropy, Digit Ratios, Subdomain Hierarchy, Brand Spoofing, TLD Risk)
     ↓
-    ├─→ Classical Engine: LightGBM GBDT (Calibrated Threshold τ = 0.830)
-    │     (99.17% Phishing Recall on Domain-Disjoint Unseen Hosts)
+    ├─→ Classical Engine: LightGBM GBDT (Calibrated Threshold τ = 0.22)
+    │     (91.16% Phishing Recall on Domain-Disjoint Unseen Hosts)
     │
     ├─→ Quantum Engine: Variational Quantum Classifier (VQC)
     │     (Hilbert Space Feature Mapping via Ry/Rz Angles + Entangling CNOT Layers)
@@ -134,7 +134,7 @@ Output: Risk Level (🟢 LOW / 🟡 MEDIUM / 🔴 CRITICAL) + Explainable ML Evi
 | **Web Frontend** | Tailwind CSS, Chart.js, Streamlit |
 | **Serverless API** | Vercel Edge Serverless Functions (Python 3.12 runtime) |
 | **Threat Intel** | AlienVault OTX & Known Phishing IOC Feeds |
-| **Testing** | pytest (75 unit & integration tests) |
+| **Testing** | pytest (84 unit & integration tests) |
 | **Deployment** | Vercel (Production) + GitHub CI |
 
 ---
@@ -168,14 +168,16 @@ vtu-hc-clauds-plan/
 │   ├── features.py            # 25-feature invariant lexical extractor
 │   ├── data_loader.py         # PhiUSIIL loader & domain-disjoint splitting
 │   ├── model.py               # LightGBM / RF / Logistic pipelines & threshold tuning
+│   ├── tree_ensemble.py       # Pure-NumPy LightGBM inference (no native library needed)
 │   ├── quantum.py             # Pure NumPy state-vector quantum circuit simulator
 │   └── quantum_model.py       # Angle scaler & hybrid VQC training pipeline
-├── tests/                     # 75 unit and integration tests
+├── tests/                     # 84 unit and integration tests
 │   ├── test_features.py       # 13 feature extraction tests
 │   ├── test_features_extra.py # 4 IP, Punycode & edge-case tests
 │   ├── test_data_loader.py    # 8 data loading & validation tests
 │   ├── test_model.py          # 7 model training & inference tests
-│   └── test_quantum.py        # 10 quantum simulator & VQC gradient tests
+│   ├── test_quantum.py        # 10 quantum simulator & VQC gradient tests
+│   └── test_tree_ensemble.py  # Domain-only input & NumPy LightGBM export tests
 ├── models/                    # Serialized production models
 │   ├── model.joblib           # Trained LightGBM pipeline + calibrated threshold
 │   ├── quantum_model.joblib   # Trained VQC circuit weights + angle scaler
@@ -193,24 +195,32 @@ vtu-hc-clauds-plan/
 
 Evaluated on 40,000 URLs from the **PhiUSIIL Phishing URL Websites Dataset** across 7,923 held-out test URLs:
 
+### ⚠️ Why the models score the domain only
+
+In PhiUSIIL, **0% of legitimate URLs have a path** (they are all bare homepages such as `https://www.example.com`), while **27% of phishing URLs do**. An earlier version trained on full URLs and reported ~99% recall and precision, but it had learned the shortcut *"has a path ⇒ phishing"*: real pages like `https://en.wikipedia.org/wiki/Phishing` were flagged as 100% phishing.
+
+The ML models now see only the **scheme + domain** (`model_input_url()` in `src/features.py`), the part of the URL where the dataset is fair to both classes. Path-level signals (lure keywords, typosquatting, encoded payloads) are handled by the rule-based security engine. The numbers below are lower than before, but they reflect real-world behaviour.
+
 ### 📈 Multi-Model & Split Strategy Benchmark
 
 | Split Strategy | Model Architecture | Phishing Recall | Precision | F1-Score | False Positive Rate | Inference Latency |
 | :--- | :--- | :---: | :---: | :---: | :---: | :---: |
-| **Domain-Disjoint** | **LightGBM (Production)** | **99.17%** | **99.97%** | **0.9957** | **0.02%** | **0.01 ms** |
-| Domain-Disjoint | Random Forest | 99.14% | 100.00% | 0.9957 | 0.00% | 0.08 ms |
-| Domain-Disjoint | Logistic Regression | 98.60% | 99.97% | 0.9928 | 0.02% | 0.005 ms |
-| Random Stratified | LightGBM | 98.99% | 99.94% | 0.9946 | 0.04% | 0.01 ms |
-| Random Stratified | Random Forest | 99.02% | 99.91% | 0.9946 | 0.06% | 0.08 ms |
-| Random Stratified | Logistic Regression | 98.96% | 99.88% | 0.9942 | 0.08% | 0.005 ms |
-| Random Stratified | VQC (4-Qubit Sim) | 76.72% | 99.97% | 0.8681 | 0.01% | 0.42 ms |
+| **Domain-Disjoint** | **LightGBM (Production)** | **91.16%** | **91.33%** | **0.9125** | **5.66%** | **0.18 ms** |
+| Domain-Disjoint | Random Forest | 91.09% | 90.17% | 0.9063 | 6.49% | 0.02 ms |
+| Domain-Disjoint | Logistic Regression | 91.29% | 89.51% | 0.9039 | 6.99% | <0.01 ms |
+| Random Stratified | LightGBM | 92.31% | 91.64% | 0.9197 | 5.84% | 0.17 ms |
+| Random Stratified | Random Forest | 91.58% | 92.48% | 0.9203 | 5.17% | 0.01 ms |
+| Random Stratified | Logistic Regression | 90.60% | 90.96% | 0.9078 | 6.25% | <0.01 ms |
+| Random Stratified | VQC (4-Qubit Sim, full dataset) | 61.55% | 98.27% | 0.7569 | 0.81% | 0.42 ms |
 
 ### 🔬 Held-Out Confusion Matrix (Domain-Disjoint: 7,923 Unseen Domain URLs)
-* **True Negatives (Legitimate Correctly Passed):** 4,789
-* **False Positives (Legitimate Flagged):** 1
-* **False Negatives (Missed Phishing):** 26 (down from hundreds in uncalibrated baselines)
-* **True Positives (Phishing Correctly Caught):** 3,107
-* **Calibrated Decision Threshold ($	au$):** `0.830` | **ROC-AUC:** `0.9978` | **PR-AUC:** `0.9982`
+* **True Negatives (Legitimate Correctly Passed):** 4,519
+* **False Positives (Legitimate Flagged):** 271
+* **False Negatives (Missed Phishing):** 277
+* **True Positives (Phishing Correctly Caught):** 2,856
+* **Calibrated Decision Threshold ($\tau$):** `0.22` | **ROC-AUC:** `0.9621` | **PR-AUC:** `0.9669`
+
+The production LightGBM model is exported to a pure-NumPy tree ensemble (`src/tree_ensemble.py`) whose predictions match LightGBM exactly, so the serverless API does not need LightGBM's native OpenMP library at runtime.
 
 ---
 
@@ -251,7 +261,7 @@ source .venv/bin/activate       # On Windows: .venv\Scripts\activate
 pip install -r requirements-dev.txt
 ```
 
-### 2. Run the 75 Automated Test Suite
+### 2. Run the 84 Automated Test Suite
 ```bash
 python -m pytest tests/ -v
 ```
@@ -353,7 +363,7 @@ git branch -d feature/my-feature
 - [x] Source code implemented (`src/`, `tests/`, `models/`, `results/`, `api/`, `public/`) ✅
 - [x] Code pushed to `main` and verified ✅
 - [x] Interactive web dashboard deployed to production ([https://qsentinental.vercel.app](https://qsentinental.vercel.app)) ✅
-- [x] 75 automated tests passing (`tests/`) ✅
+- [x] 84 automated tests passing (`tests/`) ✅
 - [x] Quantum Variational Classifier implemented with parameter-shift gradients ✅
 - [x] Model evaluated on 40,000 URLs with domain-disjoint validation and threshold calibration ✅
 
