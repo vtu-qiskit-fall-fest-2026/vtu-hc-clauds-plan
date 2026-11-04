@@ -46,7 +46,7 @@ def run_benchmark(df: pd.DataFrame) -> dict:
     print("=" * 65)
 
     comparison = {}
-    models = ["lightgbm", "random_forest", "logistic_regression"]
+    models = ["xgboost", "lightgbm", "random_forest", "logistic_regression"]
     splits = ["domain_disjoint", "random_stratified"]
 
     for split in splits:
@@ -124,9 +124,9 @@ def main() -> None:
     )
     parser.add_argument(
         "--model-type",
-        default="lightgbm",
-        choices=["lightgbm", "random_forest", "logistic_regression", "hist_gradient_boosting"],
-        help="Classifier algorithm (default: 'lightgbm').",
+        default="xgboost",
+        choices=["xgboost", "lightgbm", "random_forest", "logistic_regression", "hist_gradient_boosting"],
+        help="Classifier algorithm (default: 'xgboost', trains on an NVIDIA GPU when available).",
     )
     parser.add_argument(
         "--split-mode",

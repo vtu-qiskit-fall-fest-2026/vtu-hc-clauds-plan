@@ -62,6 +62,14 @@ except Exception as e:
         check_domain_impersonation = None
         extract_domain_components = None
 
+_MODEL_DISPLAY_NAMES = {
+    "xgboost": "XGBoost",
+    "lightgbm": "LightGBM",
+    "random_forest": "Random Forest",
+    "logistic_regression": "Logistic Regression",
+    "hist_gradient_boosting": "HistGradientBoosting",
+}
+
 # Cache model instances in memory across warm invocations
 _CLASSICAL_BUNDLE = None
 _QUANTUM_BUNDLE = None
@@ -72,7 +80,7 @@ MAX_REQUEST_SIZE_BYTES = 1024 * 1024  # 1 MB
 
 
 def get_models():
-    """Retrieve or load cached classical LightGBM and quantum VQC model bundles."""
+    """Retrieve or load cached classical (XGBoost) and quantum VQC model bundles."""
     global _CLASSICAL_BUNDLE, _QUANTUM_BUNDLE
     m_path = CURRENT_DIR / "models" if (CURRENT_DIR / "models").is_dir() else (ROOT_DIR / "models")
     if _CLASSICAL_BUNDLE is None and load_model:
@@ -341,7 +349,7 @@ def perform_full_scan(url: str) -> dict:
     prob_classical = None
     classical_success = False
     threshold = 0.5
-    model_name = "LightGBM"
+    model_name = "XGBoost"
     model_status = "success"
 
     if clf_bundle and clf_bundle is not False and predict_url:
@@ -352,7 +360,7 @@ def perform_full_scan(url: str) -> dict:
             c_res = predict_url(clean_url, clf=clf, scaler=scaler, threshold=threshold)
             prob_classical = float(c_res.get("probability_phishing", 0.5))
             meta = getattr(clf_bundle, "metadata", {}) or {}
-            model_name = meta.get("model_type", "LightGBM").upper()
+            model_name = _MODEL_DISPLAY_NAMES.get(meta.get("model_type", ""), "XGBoost")
             classical_success = True
         except Exception:
             prob_classical = None
@@ -403,7 +411,7 @@ def perform_full_scan(url: str) -> dict:
         risk_score = 5
         detection_engines = ["brand_verification"]
         if classical_success:
-            detection_engines.append("classical_lightgbm")
+            detection_engines.append(f"classical_{model_name.lower().replace(' ', '_')}")
         reasons = [f"Verified legitimate domain for {target_brand}"]
         composite_prob = prob_classical if prob_classical is not None else 0.05
         confidence = round(1.0 - composite_prob, 4)
@@ -460,7 +468,7 @@ def perform_full_scan(url: str) -> dict:
     # BRANCH F: Standard ML + Heuristics Decision
     else:
         composite_prob = float(0.80 * prob_classical + 0.20 * prob_quantum)
-        detection_engines = ["classical_lightgbm"]
+        detection_engines = [f"classical_{model_name.lower().replace(' ', '_')}"]
         if quantum_success:
             detection_engines.append("quantum_vqc")
 

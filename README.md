@@ -98,8 +98,8 @@ URL Parsing & Invariant Normalization
 25 Invariant Lexical & Structural Features
 (Shannon Entropy, Digit Ratios, Subdomain Hierarchy, Brand Spoofing, TLD Risk)
     ↓
-    ├─→ Classical Engine: LightGBM GBDT (Calibrated Threshold τ = 0.22)
-    │     (91.16% Phishing Recall on Domain-Disjoint Unseen Hosts)
+    ├─→ Classical Engine: XGBoost GBDT, GPU-trained (Calibrated Threshold τ = 0.43)
+    │     (75.86% Phishing Recall / 76.23% Precision on Domain-Disjoint Unseen Hosts)
     │
     ├─→ Quantum Engine: Variational Quantum Classifier (VQC)
     │     (Hilbert Space Feature Mapping via Ry/Rz Angles + Entangling CNOT Layers)
@@ -116,7 +116,7 @@ Output: Risk Level (🟢 LOW / 🟡 MEDIUM / 🔴 CRITICAL) + Explainable ML Evi
 
 1. **URL Ingestion & Normalization**: Accepts URL strings from web input, REST API, or batch CSV. Normalizes schemes and apex hostnames to eliminate `www.` biases.
 2. **Feature Extraction**: Extracts 25 lexical, structural, and information-theoretic indicators (Shannon entropy, brand spoofing in subdomains, suspicious TLDs, IP literals).
-3. **Classical ML Engine**: LightGBM Gradient Boosted Decision Trees tuned via validation threshold calibration to minimize false negatives and maximize phishing recall.
+3. **Classical ML Engine**: XGBoost Gradient Boosted Decision Trees trained on an NVIDIA GPU (CUDA), with a validation-calibrated decision threshold to balance phishing recall against false positives.
 4. **Quantum VQC Engine**: Parameterized 4-qubit quantum circuit simulator utilizing Pauli rotation encodings ($R_y(\theta), R_z(\theta)$) and parameter-shift gradients.
 5. **Threat Intelligence Integration**: AlienVault OTX / PhishTank campaign indicators for real-world threat correlation.
 6. **Interactive Dashboard**: Modern dark-mode SOC dashboard on Vercel + local Streamlit application with interactive Quantum Lab.
@@ -129,12 +129,12 @@ Output: Risk Level (🟢 LOW / 🟡 MEDIUM / 🔴 CRITICAL) + Explainable ML Evi
 | :--- | :--- |
 | **Language** | Python 3.11 / 3.12 / 3.14+ |
 | **Quantum Simulation** | NumPy Statevector Engine & Aer-compatible Parameter-Shift Circuits |
-| **Classical ML** | LightGBM, scikit-learn, joblib |
+| **Classical ML** | XGBoost (CUDA GPU training), LightGBM, scikit-learn, joblib |
 | **Data & Feature Engineering** | pandas, numpy, scipy |
 | **Web Frontend** | Tailwind CSS, Chart.js, Streamlit |
 | **Serverless API** | Vercel Edge Serverless Functions (Python 3.12 runtime) |
 | **Threat Intel** | AlienVault OTX & Known Phishing IOC Feeds |
-| **Testing** | pytest (84 unit & integration tests) |
+| **Testing** | pytest (87 unit & integration tests) |
 | **Deployment** | Vercel (Production) + GitHub CI |
 
 ---
@@ -166,20 +166,20 @@ vtu-hc-clauds-plan/
 ├── src/                       # Core Detection Engine
 │   ├── __init__.py
 │   ├── features.py            # 25-feature invariant lexical extractor
-│   ├── data_loader.py         # PhiUSIIL loader & domain-disjoint splitting
-│   ├── model.py               # LightGBM / RF / Logistic pipelines & threshold tuning
-│   ├── tree_ensemble.py       # Pure-NumPy LightGBM inference (no native library needed)
+│   ├── data_loader.py         # Dataset loader (generic CSV & PhiUSIIL) & domain grouping
+│   ├── model.py               # XGBoost (GPU) / LightGBM / RF / Logistic pipelines & threshold tuning
+│   ├── tree_ensemble.py       # Pure-NumPy XGBoost/LightGBM inference (no native library needed)
 │   ├── quantum.py             # Pure NumPy state-vector quantum circuit simulator
 │   └── quantum_model.py       # Angle scaler & hybrid VQC training pipeline
-├── tests/                     # 84 unit and integration tests
+├── tests/                     # 87 unit and integration tests
 │   ├── test_features.py       # 13 feature extraction tests
 │   ├── test_features_extra.py # 4 IP, Punycode & edge-case tests
 │   ├── test_data_loader.py    # 8 data loading & validation tests
 │   ├── test_model.py          # 7 model training & inference tests
 │   ├── test_quantum.py        # 10 quantum simulator & VQC gradient tests
-│   └── test_tree_ensemble.py  # Domain-only input & NumPy LightGBM export tests
+│   └── test_tree_ensemble.py  # URL canonicalisation & NumPy XGBoost/LightGBM export tests
 ├── models/                    # Serialized production models
-│   ├── model.joblib           # Trained LightGBM pipeline + calibrated threshold
+│   ├── model.joblib           # Trained XGBoost (NumPy export) + scaler + calibrated threshold
 │   ├── quantum_model.joblib   # Trained VQC circuit weights + angle scaler
 │   └── feature_names.json     # 25-feature schema
 └── results/                   # Verified evaluation artifacts
@@ -193,34 +193,46 @@ vtu-hc-clauds-plan/
 
 ## 📊 Benchmark Results & Performance Findings
 
-Evaluated on 40,000 URLs from the **PhiUSIIL Phishing URL Websites Dataset** across 7,923 held-out test URLs:
+**Dataset:** 450,176 labelled URLs (345,738 legitimate / 104,438 phishing), reduced to **443,115** after de-duplication. Evaluated on held-out test data; the headline split is **domain-disjoint** (84,293 test URLs from domains never seen in training).
 
-### ⚠️ Why the models score the domain only
+### ⚠️ Removing dataset shortcuts
 
-In PhiUSIIL, **0% of legitimate URLs have a path** (they are all bare homepages such as `https://www.example.com`), while **27% of phishing URLs do**. An earlier version trained on full URLs and reported ~99% recall and precision, but it had learned the shortcut *"has a path ⇒ phishing"*: real pages like `https://en.wikipedia.org/wiki/Phishing` were flagged as 100% phishing.
+Raw URL datasets often contain collection artifacts that a model learns instead of real phishing signals:
 
-The ML models now see only the **scheme + domain** (`model_input_url()` in `src/features.py`), the part of the URL where the dataset is fair to both classes. Path-level signals (lure keywords, typosquatting, encoded payloads) are handled by the rule-based security engine. The numbers below are lower than before, but they reflect real-world behaviour.
+- **Scheme / `www.`:** 99.8% of legitimate URLs start with `https://www.` versus 0.7% of phishing URLs. Left in, the model learns *"https ⇒ safe"*, which is false in practice (most modern phishing sites use HTTPS).
+- **HTML escaping:** some phishing URLs contain `&amp;` instead of `&`.
+- **Duplicates:** 7,061 URLs become identical once the scheme/`www.` is removed (3 with conflicting labels). These are de-duplicated so the same URL can't appear in both train and test sets.
+
+Every URL is therefore canonicalised by `model_input_url()` in `src/features.py` (scheme and leading `www.` removed, HTML entities decoded, **full host + path + query kept**) both at training and at scan time. An earlier version trained on the PhiUSIIL dataset reported ~99% scores, but PhiUSIIL contains no legitimate URLs with a path, so that model flagged real pages such as `https://en.wikipedia.org/wiki/Phishing` as phishing. The numbers below are lower, but they reflect real-world behaviour.
+
+### ⚡ GPU training
+
+The production model is **XGBoost trained on an NVIDIA GPU** (CUDA, `tree_method="hist"`). On an RTX 3050 Laptop GPU, fitting 300 trees on 309,613 URLs takes **~4 seconds**. `train.py` uses the GPU automatically when one is available and falls back to CPU otherwise.
 
 ### 📈 Multi-Model & Split Strategy Benchmark
 
 | Split Strategy | Model Architecture | Phishing Recall | Precision | F1-Score | False Positive Rate | Inference Latency |
 | :--- | :--- | :---: | :---: | :---: | :---: | :---: |
-| **Domain-Disjoint** | **LightGBM (Production)** | **91.16%** | **91.33%** | **0.9125** | **5.66%** | **0.18 ms** |
-| Domain-Disjoint | Random Forest | 91.09% | 90.17% | 0.9063 | 6.49% | 0.02 ms |
-| Domain-Disjoint | Logistic Regression | 91.29% | 89.51% | 0.9039 | 6.99% | <0.01 ms |
-| Random Stratified | LightGBM | 92.31% | 91.64% | 0.9197 | 5.84% | 0.17 ms |
-| Random Stratified | Random Forest | 91.58% | 92.48% | 0.9203 | 5.17% | 0.01 ms |
-| Random Stratified | Logistic Regression | 90.60% | 90.96% | 0.9078 | 6.25% | <0.01 ms |
-| Random Stratified | VQC (4-Qubit Sim, full dataset) | 61.55% | 98.27% | 0.7569 | 0.81% | 0.42 ms |
+| **Domain-Disjoint** | **XGBoost (Production, GPU-trained)** | **75.86%** | **76.23%** | **0.7604** | **7.15%** | **0.17 ms** |
+| Domain-Disjoint | LightGBM | 74.04% | 75.70% | 0.7486 | 7.18% | 0.10 ms |
+| Domain-Disjoint | Random Forest | 70.92% | 79.68% | 0.7505 | 5.47% | <0.01 ms |
+| Domain-Disjoint | Logistic Regression | 56.87% | 62.37% | 0.5949 | 10.37% | <0.01 ms |
+| Random Stratified | XGBoost | 85.37% | 77.24% | 0.8110 | 7.09% | 0.18 ms |
+| Random Stratified | LightGBM | 81.70% | 75.91% | 0.7870 | 7.30% | 0.16 ms |
+| Random Stratified | Random Forest | 85.33% | 76.79% | 0.8084 | 7.26% | <0.01 ms |
+| Random Stratified | Logistic Regression | 54.06% | 67.83% | 0.6017 | 7.22% | <0.01 ms |
+| Random Stratified | VQC (4-Qubit Sim) | 24.58% | 80.55% | 0.3767 | 1.67% | 0.42 ms |
 
-### 🔬 Held-Out Confusion Matrix (Domain-Disjoint: 7,923 Unseen Domain URLs)
-* **True Negatives (Legitimate Correctly Passed):** 4,519
-* **False Positives (Legitimate Flagged):** 271
-* **False Negatives (Missed Phishing):** 277
-* **True Positives (Phishing Correctly Caught):** 2,856
-* **Calibrated Decision Threshold ($\tau$):** `0.22` | **ROC-AUC:** `0.9621` | **PR-AUC:** `0.9669`
+The 4-qubit VQC uses only four features (`path_length`, `entropy_url`, `entropy_domain`, `num_sensitive_keywords`), so it is precise but misses most phishing; it contributes 20% of the combined score.
 
-The production LightGBM model is exported to a pure-NumPy tree ensemble (`src/tree_ensemble.py`) whose predictions match LightGBM exactly, so the serverless API does not need LightGBM's native OpenMP library at runtime.
+### 🔬 Held-Out Confusion Matrix (Domain-Disjoint: 84,293 Unseen-Domain URLs)
+* **True Negatives (Legitimate Correctly Passed):** 60,103
+* **False Positives (Legitimate Flagged):** 4,627
+* **False Negatives (Missed Phishing):** 4,723
+* **True Positives (Phishing Correctly Caught):** 14,840
+* **Calibrated Decision Threshold ($\tau$):** `0.43` | **ROC-AUC:** `0.9306` | **PR-AUC:** `0.8542`
+
+The production model is exported to a pure-NumPy tree ensemble (`src/tree_ensemble.py`) whose predictions match XGBoost to within 1e-6, so the serverless API needs neither XGBoost/CUDA nor LightGBM's native OpenMP library at runtime.
 
 ---
 
@@ -261,7 +273,7 @@ source .venv/bin/activate       # On Windows: .venv\Scripts\activate
 pip install -r requirements-dev.txt
 ```
 
-### 2. Run the 84 Automated Test Suite
+### 2. Run the 87 Automated Test Suite
 ```bash
 python -m pytest tests/ -v
 ```
@@ -274,14 +286,14 @@ The dashboard opens at `http://localhost:8501` featuring the URL Scanner and Qua
 
 ### 4. Train & Benchmark Models
 ```bash
-# Train LightGBM with domain-disjoint splitting:
-python train.py --split-mode domain_disjoint
+# Train the production XGBoost model (uses an NVIDIA GPU automatically if available):
+python train.py --data "path/to/URL dataset.csv" --url-col url --label-col type
 
 # Train Quantum VQC:
-python train_quantum.py --qubits 4 --layers 3
+python train_quantum.py --data "path/to/URL dataset.csv" --url-col url --label-col type --max-train 600
 
-# Run comprehensive comparative benchmark:
-python train.py --benchmark
+# Run comprehensive comparative benchmark (XGBoost, LightGBM, RF, Logistic Regression x 2 splits):
+python train.py --data "path/to/URL dataset.csv" --url-col url --label-col type --benchmark
 ```
 
 ---
@@ -293,7 +305,7 @@ python train.py --benchmark
 - **Working Prototype (Web Dashboard):** Launch locally with `streamlit run app.py`
 
 - **Interactive Pages:**
-  - **URL Scanner:** Single URL analysis with Classical LightGBM + Quantum VQC simulation
+  - **URL Scanner:** Single URL analysis with Classical XGBoost + Quantum VQC simulation
   - **Quantum Lab:** Parameterized circuit schematic, loss convergence, and comparative metrics
   - **Batch Analysis:** Upload CSV or paste multiple URLs and export analysis results
   - **Evaluation:** Model performance metrics, benchmark comparisons, and confusion matrix
@@ -363,9 +375,9 @@ git branch -d feature/my-feature
 - [x] Source code implemented (`src/`, `tests/`, `models/`, `results/`, `api/`, `public/`) ✅
 - [x] Code pushed to `main` and verified ✅
 - [x] Interactive web dashboard deployed to production ([https://qsentinental.vercel.app](https://qsentinental.vercel.app)) ✅
-- [x] 84 automated tests passing (`tests/`) ✅
+- [x] 87 automated tests passing (`tests/`) ✅
 - [x] Quantum Variational Classifier implemented with parameter-shift gradients ✅
-- [x] Model evaluated on 40,000 URLs with domain-disjoint validation and threshold calibration ✅
+- [x] Model trained on 443,115 URLs (GPU) with domain-disjoint validation and threshold calibration ✅
 
 ---
 
@@ -376,6 +388,7 @@ git branch -d feature/my-feature
 | ⚛️ Qiskit Documentation | https://docs.quantum.ibm.com/ |
 | 🔐 AlienVault OTX | https://otx.alienvault.com/api |
 | 📊 Streamlit Docs | https://docs.streamlit.io/ |
+| 🤖 XGBoost Docs | https://xgboost.readthedocs.io/ |
 | 🤖 LightGBM Docs | https://lightgbm.readthedocs.io/ |
 | 🤖 scikit-learn | https://scikit-learn.org/ |
 | 📋 GitHub Docs | https://docs.github.com/ |

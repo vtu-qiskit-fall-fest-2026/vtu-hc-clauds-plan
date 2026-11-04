@@ -1,22 +1,88 @@
-"""Dependency-free inference for trained LightGBM binary classifiers.
+"""Dependency-free inference for trained LightGBM / XGBoost binary classifiers.
 
-LightGBM's Python package loads a native library that needs OpenMP
-(``libgomp.so.1``). Serverless hosts such as Vercel don't ship it, so
-unpickling an ``LGBMClassifier`` fails there. After training we export the
-booster's trees into flat NumPy arrays and score them here with the same
-decision rules, so production inference needs only NumPy.
+LightGBM and XGBoost ship native libraries (LightGBM needs OpenMP's
+``libgomp.so.1``; XGBoost wheels are 100+ MB with CUDA). Serverless hosts such
+as Vercel can't load them, so after training we export the boosted trees into
+flat NumPy arrays and score them here with the same decision rules, so
+production inference needs only NumPy.
+
+Decision rules reproduced exactly:
+* LightGBM: go left when ``x <= threshold`` (float64).
+* XGBoost:  go left ("yes") when ``float32(x) < float32(threshold)``;
+  the raw margin starts at ``logit(base_score)``.
 """
+
+import json
+import math
 
 import numpy as np
 
 
 class TreeEnsembleClassifier:
-    """Pure-NumPy replica of a LightGBM binary ``predict_proba``."""
+    """Pure-NumPy replica of a LightGBM / XGBoost binary ``predict_proba``."""
 
-    def __init__(self, trees: list[dict], n_features: int):
+    def __init__(self, trees: list[dict], n_features: int, base_margin: float = 0.0,
+                 rule: str = "le", source: str = "lightgbm"):
         self.trees = trees
         self.n_features = n_features
+        self.base_margin = base_margin
+        self.rule = rule  # "le" (LightGBM, float64) or "lt32" (XGBoost, float32)
+        self.source = source
         self.classes_ = np.array([0, 1])
+
+    def __setstate__(self, state):
+        # Models pickled before XGBoost support lack these attributes.
+        state.setdefault("base_margin", 0.0)
+        state.setdefault("rule", "le")
+        state.setdefault("source", "lightgbm")
+        self.__dict__.update(state)
+
+    @classmethod
+    def from_xgboost(cls, model) -> "TreeEnsembleClassifier":
+        """Build from a fitted ``xgboost.XGBClassifier`` (binary:logistic)."""
+        booster = model.get_booster() if hasattr(model, "get_booster") else model
+        cfg = json.loads(booster.save_config())["learner"]
+        objective = cfg["objective"]["name"]
+        if objective != "binary:logistic":
+            raise ValueError(f"Only binary:logistic is supported, got {objective!r}")
+        base_score = float(str(cfg["learner_model_param"]["base_score"]).strip("[]"))
+        base_margin = math.log(base_score / (1.0 - base_score))
+        trees = [cls._flatten_xgb(json.loads(t)) for t in booster.get_dump(dump_format="json")]
+        n_features = int(cfg["learner_model_param"]["num_feature"])
+        return cls(trees, n_features, base_margin=base_margin, rule="lt32", source="xgboost")
+
+    @staticmethod
+    def _flatten_xgb(root: dict) -> dict:
+        feature, threshold, left, right, value, default_left = [], [], [], [], [], []
+
+        def visit(node: dict) -> int:
+            idx = len(feature)
+            feature.append(-1)
+            threshold.append(0.0)
+            left.append(-1)
+            right.append(-1)
+            value.append(0.0)
+            default_left.append(True)
+            if "leaf" in node:
+                value[idx] = float(node["leaf"])
+                return idx
+            children = {c["nodeid"]: c for c in node["children"]}
+            feature[idx] = int(str(node["split"]).lstrip("f"))
+            threshold[idx] = float(node["split_condition"])
+            default_left[idx] = node["missing"] == node["yes"]
+            left[idx] = visit(children[node["yes"]])
+            right[idx] = visit(children[node["no"]])
+            return idx
+
+        visit(root)
+        return {
+            "feature": np.array(feature, dtype=np.int32),
+            "threshold": np.array(threshold, dtype=np.float32).astype(np.float64),
+            "left": np.array(left, dtype=np.int32),
+            "right": np.array(right, dtype=np.int32),
+            "value": np.array(value, dtype=np.float64),
+            "default_left": np.array(default_left, dtype=bool),
+        }
 
     @classmethod
     def from_lightgbm(cls, model) -> "TreeEnsembleClassifier":
@@ -69,8 +135,11 @@ class TreeEnsembleClassifier:
         X = np.asarray(X, dtype=np.float64)
         if X.ndim == 1:
             X = X.reshape(1, -1)
+        if self.rule == "lt32":
+            # XGBoost compares float32 features against float32 thresholds.
+            X = X.astype(np.float32).astype(np.float64)
         rows = np.arange(len(X))
-        raw = np.zeros(len(X))
+        raw = np.full(len(X), self.base_margin)
         for t in self.trees:
             node = np.zeros(len(X), dtype=np.int32)
             while True:
@@ -79,7 +148,9 @@ class TreeEnsembleClassifier:
                 if not internal.any():
                     break
                 x = X[rows, np.where(internal, feat, 0)]
-                go_left = np.where(np.isnan(x), t["default_left"][node], x <= t["threshold"][node])
+                thr = t["threshold"][node]
+                split = x < thr if self.rule == "lt32" else x <= thr
+                go_left = np.where(np.isnan(x), t["default_left"][node], split)
                 nxt = np.where(go_left, t["left"][node], t["right"][node])
                 node = np.where(internal, nxt, node)
             raw += t["value"][node]

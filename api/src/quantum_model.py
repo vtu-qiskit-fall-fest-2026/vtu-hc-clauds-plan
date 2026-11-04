@@ -29,7 +29,7 @@ from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import FunctionTransformer, MinMaxScaler
 
 from .features import FEATURE_NAMES, extract_features, model_input_url
-from .model import MODEL_DIR, RANDOM_SEED, RESULTS_DIR, _featurise
+from .model import MODEL_DIR, RANDOM_SEED, RESULTS_DIR, _featurise, dedupe_on_model_input
 from .quantum import VariationalQuantumClassifier
 
 QUANTUM_MODEL_FILE = "quantum_model.joblib"
@@ -65,6 +65,7 @@ def train_quantum_and_evaluate(
     n_qubits = int(min(max(n_qubits, 1), len(FEATURE_NAMES)))
 
     df = df.drop_duplicates(subset="url").reset_index(drop=True)
+    df = dedupe_on_model_input(df)
     counts = df["label"].value_counts()
     if len(counts) < 2:
         raise ValueError("Training requires both phishing (1) and legitimate (0) samples.")

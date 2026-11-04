@@ -1,31 +1,31 @@
 {
-  "model_type": "lightgbm",
+  "model_type": "xgboost",
   "split_mode": "domain_disjoint",
-  "threshold": 0.22,
-  "recall": 0.9116,
-  "recall_phishing": 0.9116,
-  "precision": 0.9133,
-  "f1": 0.9125,
-  "f2": 0.9119,
-  "false_positive_rate": 0.0566,
-  "false_negatives": 277,
-  "false_positives": 271,
-  "true_positives": 2856,
-  "true_negatives": 4519,
-  "roc_auc": 0.9621,
-  "pr_auc": 0.9669,
+  "threshold": 0.43000000000000005,
+  "recall": 0.7586,
+  "recall_phishing": 0.7586,
+  "precision": 0.7623,
+  "f1": 0.7604,
+  "f2": 0.7593,
+  "false_positive_rate": 0.0715,
+  "false_negatives": 4723,
+  "false_positives": 4627,
+  "true_positives": 14840,
+  "true_negatives": 60103,
+  "roc_auc": 0.9306,
+  "pr_auc": 0.8542,
   "confusion_matrix": [
     [
-      4519,
-      271
+      60103,
+      4627
     ],
     [
-      277,
-      2856
+      4723,
+      14840
     ]
   ],
-  "num_train": 28075,
-  "num_val": 3994,
-  "num_test": 7923,
-  "inference_latency_ms": 0.135
+  "num_train": 309613,
+  "num_val": 49209,
+  "num_test": 84293,
+  "inference_latency_ms": 0.167
 }

@@ -5,6 +5,7 @@ any network, DNS, or HTTP requests (zero-network inspection prevents SSRF,
 DNS-rebinding, and remote code execution risks).
 """
 
+import html
 import math
 import re
 from collections import Counter
@@ -110,26 +111,31 @@ def _is_ip_hostname(hostname: str) -> bool:
     return bool(_IPV4_RE.match(clean)) or (":" in hostname and bool(_IPV6_RE.match(hostname)))
 
 
-def model_input_url(url: str) -> str:
-    """Reduce *url* to ``scheme://netloc`` — the part the ML models are trained on.
+_SCHEME_RE = re.compile(r"^[a-zA-Z][a-zA-Z0-9+.\-]*://")
+_WWW_RE = re.compile(r"^www\.", re.IGNORECASE)
 
-    In the PhiUSIIL dataset every legitimate URL is a bare homepage (no path),
-    while ~27% of phishing URLs carry a path. A model that sees the path learns
-    the shortcut "has a path => phishing" and flags every real article/page
-    (e.g. en.wikipedia.org/wiki/Phishing). The models therefore score only the
-    scheme + authority (userinfo, host, port). Path-level signals such as lure
-    keywords are handled by the heuristic and typosquatting engines instead.
+
+def model_input_url(url: str) -> str:
+    """Canonicalise *url* into the form the ML models are trained and scored on.
+
+    The training dataset carries collection artifacts that would otherwise be
+    learned as shortcuts:
+
+    * 99.8% of legitimate URLs start with ``https://www.`` versus 0.7% of
+      phishing URLs, so the scheme and a leading ``www.`` are removed and every
+      URL is re-prefixed with a constant ``http://`` (``is_https`` becomes
+      uninformative by design; real phishing sites routinely use HTTPS).
+    * Some phishing URLs are HTML-escaped (``&amp;``), so entities are decoded.
+
+    The full host, path and query are kept. The same canonicalisation runs at
+    scan time, so training and inference always see identical inputs.
     """
     if not isinstance(url, str) or not url.strip():
         return ""
-    raw = url.strip()
-    try:
-        parsed = _safe_parse(raw)
-    except ValueError:
-        return raw
-    if not parsed.netloc:
-        return raw
-    return f"{parsed.scheme}://{parsed.netloc}"
+    rest = html.unescape(url.strip())
+    rest = _SCHEME_RE.sub("", rest, count=1)
+    rest = _WWW_RE.sub("", rest, count=1)
+    return "http://" + rest if rest else ""
 
 
 def extract_features(url: str) -> list[float]:

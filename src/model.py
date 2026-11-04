@@ -49,6 +49,25 @@ try:
 except Exception:
     _HAS_LIGHTGBM = False
 
+# XGBoost is likewise training-only (it can train on an NVIDIA GPU via CUDA).
+try:
+    import xgboost as xgb
+    _HAS_XGBOOST = True
+except Exception:
+    _HAS_XGBOOST = False
+
+
+def _xgboost_device() -> str:
+    """Return 'cuda' if XGBoost can train on an NVIDIA GPU here, else 'cpu'."""
+    try:
+        probe = np.random.default_rng(0).random((64, 2))
+        xgb.XGBClassifier(n_estimators=1, device="cuda", tree_method="hist").fit(
+            probe, (probe[:, 0] > 0.5).astype(int)
+        )
+        return "cuda"
+    except Exception:
+        return "cpu"
+
 class ModelBundle(tuple):
     """2-tuple (clf, scaler) for backwards-compatibility, with threshold and metadata properties."""
 
@@ -65,6 +84,22 @@ class ModelBundle(tuple):
 RANDOM_SEED = 42
 MODEL_DIR = Path("models")
 RESULTS_DIR = Path("results")
+
+
+def dedupe_on_model_input(df: pd.DataFrame) -> pd.DataFrame:
+    """Drop rows that become identical after canonicalisation (prevents train/test leakage).
+
+    Groups whose copies disagree on the label are removed entirely.
+    """
+    canon = df["url"].map(model_input_url)
+    conflicting = df.groupby(canon)["label"].transform("nunique") > 1
+    n_conf = int(canon[conflicting].nunique())
+    out = df[~conflicting].assign(_canon=canon[~conflicting])
+    out = out.drop_duplicates(subset="_canon").drop(columns="_canon").reset_index(drop=True)
+    removed = len(df) - len(out)
+    if removed:
+        print(f"  Canonical dedupe: removed {removed} rows ({n_conf} URLs with conflicting labels).")
+    return out
 
 
 def _featurise(urls: pd.Series | list) -> np.ndarray:
@@ -149,6 +184,7 @@ def train_and_evaluate(
 
     # Clean & Deduplicate
     df = df.drop_duplicates(subset="url").reset_index(drop=True)
+    df = dedupe_on_model_input(df)
     if "domain" not in df.columns:
         from .data_loader import _extract_domain
         df["domain"] = df["url"].apply(_extract_domain)
@@ -201,7 +237,21 @@ def train_and_evaluate(
 
     # Initialize model
     print(f"  Training model: {model_type.upper()}...")
-    if model_type == "lightgbm" and _HAS_LIGHTGBM:
+    if model_type == "xgboost":
+        if not _HAS_XGBOOST:
+            raise ValueError("model_type='xgboost' requires the xgboost package (pip install xgboost).")
+        device = _xgboost_device()
+        print(f"  XGBoost training device: {device.upper()}")
+        clf = xgb.XGBClassifier(
+            n_estimators=300,
+            learning_rate=0.08,
+            max_depth=8,
+            tree_method="hist",
+            device=device,
+            random_state=RANDOM_SEED,
+            eval_metric="logloss",
+        )
+    elif model_type == "lightgbm" and _HAS_LIGHTGBM:
         clf = lgb.LGBMClassifier(
             n_estimators=150,
             learning_rate=0.08,
@@ -230,18 +280,26 @@ def train_and_evaluate(
             n_jobs=-1,
         )
 
+    t_fit = time.time()
     clf.fit(X_train, y_train)
+    print(f"  Fit time: {time.time() - t_fit:.1f}s")
 
-    # Export LightGBM to a pure-NumPy ensemble so the saved model can be served
-    # without the lightgbm native library. Verify it reproduces LightGBM exactly.
+    # Export boosted trees to a pure-NumPy ensemble so the saved model can be
+    # served without the lightgbm/xgboost native libraries. Verify it matches.
+    exporter = None
     if _HAS_LIGHTGBM and isinstance(clf, lgb.LGBMClassifier):
-        exported = TreeEnsembleClassifier.from_lightgbm(clf)
+        exporter, tol = TreeEnsembleClassifier.from_lightgbm, 1e-6
+    elif _HAS_XGBOOST and isinstance(clf, xgb.XGBClassifier):
+        clf.set_params(device="cpu")  # reference predictions on CPU, no GPU/CPU data copy warnings
+        exporter, tol = TreeEnsembleClassifier.from_xgboost, 1e-5  # XGBoost sums leaves in float32
+    if exporter:
+        exported = exporter(clf)
         max_diff = float(np.max(np.abs(
             exported.predict_proba(X_val)[:, 1] - clf.predict_proba(X_val)[:, 1]
         )))
-        if max_diff > 1e-6:
-            raise RuntimeError(f"Exported tree ensemble deviates from LightGBM by {max_diff}")
-        print(f"  Exported LightGBM to NumPy tree ensemble (max deviation {max_diff:.1e})")
+        if max_diff > tol:
+            raise RuntimeError(f"Exported tree ensemble deviates from {model_type} by {max_diff}")
+        print(f"  Exported {model_type} to NumPy tree ensemble (max deviation {max_diff:.1e})")
         clf = exported
 
     # Threshold calibration on VALIDATION data (never touch test set)
@@ -299,8 +357,8 @@ def train_and_evaluate(
         "threshold": optimal_thresh,
         "feature_names": FEATURE_NAMES,
         "model_type": model_type,
-        "version": "v2.1-domain-level",
-        "input_scope": "scheme+netloc (path and query excluded)",
+        "version": "v3.0-url-dataset",
+        "input_scope": "full URL, scheme and leading www. removed, HTML entities decoded",
     }
     joblib.dump(bundle, model_path / "model.joblib")
     with open(model_path / "feature_names.json", "w") as f:

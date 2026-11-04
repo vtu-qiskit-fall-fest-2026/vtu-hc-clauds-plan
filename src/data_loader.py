@@ -36,7 +36,9 @@ def _extract_domain(url: str) -> str:
         clean = "http://" + clean
     try:
         parsed = urlparse(clean)
-        return (parsed.hostname or "unknown").lower()
+        host = (parsed.hostname or "unknown").lower()
+        # www.example.com and example.com are the same site: group them together.
+        return host[4:] if host.startswith("www.") else host
     except Exception:
         return "unknown"
 
